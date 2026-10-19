@@ -143,6 +143,23 @@ var carriedCharge = 0
 document.fonts.load("8px NES")
 
 var game = new Phaser.Game(config)
+
+// Run at 60 frames per second at most, even on 120/144 Hz screens. Phaser
+// 3.55 has no frame limit option, so extra animation frames are skipped.
+const FPS_LIMIT = 60
+;(function ()
+{
+    let interval = 1000 / FPS_LIMIT
+    let next = 0
+    let step = game.loop.step.bind(game.loop)
+    game.loop.step = function (time)
+    {
+        if (time < next - 1) return
+        next += interval
+        if (next < time) next = time
+        step(time)
+    }
+})()
 AudioSettings.init(game)
 ShadowTuner.init()
 GameInput.init(game)
