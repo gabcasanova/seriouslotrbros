@@ -1,3 +1,6 @@
+// Coins for beating the Balrog (the end of Moria).
+const MORIA_REWARD = 100
+
 const BALROG_BLUE = "#5182ff"
 const BALROG_RED = "#db4161"
 
@@ -34,6 +37,7 @@ class Balrog extends Phaser.Scene
         this.load.audio("balrogMusic", "assets/music/balrog.mp3")
         this.load.audio("fireBall", "assets/sounds/enemy.wav")
         this.load.audio("sword", "assets/sounds/sword.wav")
+        this.load.audio("coin", "assets/sounds/coin.wav")
 
         // Backgrounds.
         this.load.image("moria3D", "assets/backgrounds/moria3D.png")
@@ -313,8 +317,14 @@ class Balrog extends Phaser.Scene
     finishLevel()
     {
         this.fading = true
-            
-        this.cameras.main.fadeOut(2000, 255, 255, 255)
+
+        Progress.clear(BALROG_STAGE)
+
+        // Moria's reward, counted into the coin total before the credits.
+        this.time.delayedCall(800, () => runCoinTally(this, MORIA_REWARD, "REWARD", 100, () =>
+        {
+            this.cameras.main.fadeOut(2000, 255, 255, 255)
+        }))
 
         this.cameras.main.once('camerafadeoutcomplete', function (camera) {
             this.sound.stopAll()

@@ -69,9 +69,19 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 				if (!this.pinchMode)
 				{
 					_projectile.destroy()
+					scene.player.addCharge(1)
 					this.health -= 1
 					this.scene.cameras.main.shake(50, 0.003)
 				}
+			}
+        }, null, this)
+
+		// Super charge: a big hit, under the same rules as normal hits.
+        scene.physics.add.overlap(this, scene.player.superGroup, function(_this, slash)
+        {
+			if (this.moving && !this.pinchMode && slash.hit(this))
+			{
+				this.health -= slash.bossDamage
 			}
         }, null, this)
 		

@@ -135,6 +135,10 @@ var levels = [
 
 var currentLevel = 0
 
+// Super charge brought into the next stage: only a full one, and only by
+// finishing a stage with it. Dying or restarting loses it.
+var carriedCharge = 0
+
 // The NES font (index.html) is used by in-game text too; start loading it now.
 document.fonts.load("8px NES")
 

@@ -1,0 +1,109 @@
+{
+    "_help": [
+        "Stage introductions, shown before each stage (in order: stage 0 is The Shire act 1).",
+        "Each string in 'text' is a paragraph. Color words with [name]...[/], using a",
+        "name from 'colors' or a hex color like [#ff0000]...[/].",
+        "Text shows in capitals (the NES font has no readable lowercase) and wraps by itself.",
+        "Set \"align\": \"center\" on a stage to center its lines.",
+        "The font has no ( ) / = characters, but they're drawn specially and work."
+    ],
+
+    "colors": {
+        "white": "#ffffff",
+        "red": "#db4161",
+        "crimson": "#b21030",
+        "blue": "#92d3ff",
+        "darkblue": "#4161fb",
+        "green": "#51a200",
+        "orange": "#ff7930",
+        "gold": "#ffa200",
+        "gray": "#a2a2a2"
+    },
+
+    "worlds": {
+        "1": {"name": "THE SHIRE", "color": "#61a2ff", "shadow": "#2000b2"},
+        "2": {"name": "BREE",      "color": "#b2b2b2", "shadow": "#797979"},
+        "3": {"name": "CARADHRAS", "color": "#9241f3", "shadow": "#6110a2"},
+        "4": {"name": "MORIA",     "color": "#ff7930", "shadow": "#a23000"}
+    },
+
+    "stages": [
+        {
+            "world": 1, "act": 1,
+            "text": [
+                "Time's up Frodo. Pack your things and get to the city of Bree. They are looking for you. Don't use the name Baggins.",
+                "You are gonna find your friends along the way. Now, [red]GO![/]"
+            ]
+        },
+        {
+            "world": 1, "act": 2,
+            "text": [
+                "[blue]Sam:[/] Hello Mr. Frodo, can i come to your adventure?",
+                "[red]Frodo:[/] Frick you man, i'll see ya at work.",
+                "[blue]Sam:[/] Ah Mr. Frodo, Don't hate me Cause i am beautiful. Maybe if you got rid of yours ye-ye ass haircut you'd maybe had met some elves. Now, let's get this going"
+            ]
+        },
+        {
+            "world": 1, "act": 3,
+            "text": [
+                "[blue]Sam:[/] Mr Frodo. I'm scared! I think i saw some terrible monster following our way!!!",
+                "[red]Frodo:[/] Come on Sam! A monster worse than those orcs and goblins we've been fighting? I don't think so.",
+                "[blue]Sam:[/] Mr Frodo, am i crazy? Or am i so sane that i blew your mind??"
+            ]
+        },
+        {
+            "world": 2, "act": 1,
+            "text": [
+                "After defeating the evil ring-wraith the two ran in the dark to the dark village of Bree, in hopes of finding Gandalf, who had gone missing after talking with Frodo at the shire.",
+                "Bree was a dark place. Populated by men and hobbits of all sorts. Even the shadiest ones..."
+            ]
+        },
+        {
+            "world": 2, "act": 2,
+            "text": [
+                "[blue]Sam:[/] Mr. Frodo, i think i just saw David Brent!",
+                "[red]Frodo:[/] Who the heck is \"David Brent\", Sam?",
+                "[blue]Sam:[/] That fat guy from the Office, Mr Frodo.",
+                "[red]Frodo:[/] Nah Sam, that's just Aragorn. Heir of Isildur, king of Gondor. No big deal."
+            ]
+        },
+        {
+            "world": 2, "act": 3,
+            "text": [
+                "[blue]Aragorn:[/] Hello, i'm Aragorn. Son of Ararthorn, Heir of Isil-",
+                "[red]Frodo:[/] Dude stfu, u gonna say that every damn time?",
+                "[blue]Aragorn:[/] Sorry. Also, be cautious with the Ringwraiths.",
+                "[red]Frodo:[/] Ok idc"
+            ]
+        },
+        {
+            "world": 2, "act": 4,
+            "text": [
+                "After the Battle with the Ring-wraith, it was just too much for [darkblue]Frodo.[/] He fell to the ground and some very visible wounds started to bleed. \"I told you to be careful, little hobbit!\" Said [crimson]Aragorn.[/] \"Will Mr. Frodo be fine?\" [orange]Sam[/] Asked. \"Do not worry, my Elf friend [green]Legolas[/] is coming to rescue him, i hope. And we're gonna follow\" [crimson]Aragorn[/] responded."
+            ]
+        },
+        {
+            "world": 3, "act": 1,
+            "text": [
+                "[darkblue]Frodo[/] blacked out. Once he woke up he found himself in a magical Evilsh valley known as Rivendell. [gray]Gandalf,[/] [crimson]Aragorn[/] and [green]Legolas[/] were all there. [blue]Elrond[/] an elvish lord, said \"Five companions, So be it! I declare you the [gold]FELLOWSHIP OF THE RING[/]\"",
+                "The fellowship marched through the misty mountains and found themselves in..."
+            ]
+        },
+        {
+            "world": 3, "act": 2,
+            "text": [
+                "[gray]Gandalf:[/] I think we took the wrong route...",
+                "[crimson]Aragorn:[/] What? How?",
+                "[gray]Gandalf:[/] I'm sorry."
+            ]
+        },
+        {
+            "world": 4, "act": 1,
+            "align": "center",
+            "text": [
+                "As the fellowship walked through the snowy mountains of Caradhras they found the Magical Door of Durin. It was their only way out. The door opened and they heard a giant hoar inside.",
+                "[gray]Gandalf:[/] STAY HERE and DON'T FOLLOW ME! I've got a bad feeling about this!"
+            ]
+        }
+    ]
+}

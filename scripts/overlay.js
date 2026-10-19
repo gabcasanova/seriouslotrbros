@@ -70,12 +70,12 @@ const HINT_GLYPHS = {
     keyboard: {
         move: ["left", "right"], navigate: ["up", "down"], aim: ["arrows"], pan: ["A", "D"],
         jump: ["A"], attack: ["S"], confirm: ["ENTER"], skip: ["ENTER"], strike: ["S"], back: ["left"],
-        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"]
+        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"], super: ["D"]
     },
     gamepad: {
         move: ["dpad"], navigate: ["dpad"], aim: ["LS"], pan: ["LB", "RB"],
         jump: ["A"], attack: ["X"], confirm: ["A"], skip: ["A"], strike: ["A"], back: ["dpad"],
-        pause: ["START"], cancel: ["B"], choose: ["dpad"]
+        pause: ["START"], cancel: ["B"], choose: ["dpad"], super: ["B"]
     }
 }
 

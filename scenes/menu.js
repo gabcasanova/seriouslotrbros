@@ -12,6 +12,8 @@ class Menu extends Phaser.Scene
         this.load.image("logo", "assets/sprites/logo.png")
 
         this.load.spritesheet("buttons", "assets/sprites/buttons.png", {frameWidth: 76, frameHeight: 24})
+        this.load.spritesheet("items", "assets/sprites/items.png", {frameWidth: 16, frameHeight: 16})
+        this.load.audio("cheat", "assets/sounds/life.wav")
 
         this.load.audio("menu", "assets/music/khazadDum.mp3")
     }
@@ -85,6 +87,7 @@ class Menu extends Phaser.Scene
         this.playButton = new Button(this, config.width/2, 164, 0, function playAction(scene)
         {
             currentLevel = 0
+            carriedCharge = 0
             scene.leaveTo("Level")
         })
 
@@ -97,6 +100,22 @@ class Menu extends Phaser.Scene
         {
             scene.leaveTo("Credits")
         })
+
+        // Every coin ever collected, top-left.
+        this.coinIcon = this.add.image(4, 6, "items", 1).setOrigin(0, 0)
+        this.coinText = addNesText(this, 20, 10, String(CoinStore.total), "#ffffff", false, true)
+
+        // Alt+Q: unlock every stage and get 1000 coins.
+        let cheat = (e) =>
+        {
+            if (e.altKey && e.code == "KeyQ" && !this.fadeStarted)
+            {
+                e.preventDefault()
+                this.welcomeCheater()
+            }
+        }
+        window.addEventListener("keydown", cheat)
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("keydown", cheat))
 
         // Music and sound effect switches, top-right.
         this.musicToggle = new SoundToggle(this, config.width - 42, 6, "music")
@@ -134,6 +153,31 @@ class Menu extends Phaser.Scene
         strip.images.forEach((image, i) => image.x = i * strip.width - strip.offset)
     }
 
+    welcomeCheater()
+    {
+        Progress.unlockAll(LEVEL_SELECT.length)
+        CoinStore.add(1000)
+        this.coinText.setText(String(CoinStore.total))
+        this.sound.play("cheat")
+
+        // Message in an 8-bit window over the logo, for a few seconds.
+        if (this.cheatMessage) this.cheatMessage.forEach(o => o.destroy())
+        let text = "WELCOME, CHEATER!"
+        let w = text.length * 8 + 24
+        let x = Math.round((config.width - w) / 2)
+        let y = 80
+        this.cheatMessage = [
+            drawWindow(this.add.graphics(), x, y, w, 24).setDepth(10),
+            addNesText(this, config.width / 2, y + 8, text, "#ffffff", true).setDepth(10)
+        ]
+        let message = this.cheatMessage
+        this.time.delayedCall(2500, () =>
+        {
+            message.forEach(o => o.destroy())
+            if (this.cheatMessage == message) this.cheatMessage = null
+        })
+    }
+
     select(index)
     {
         this.selected = index
@@ -161,7 +205,10 @@ class Menu extends Phaser.Scene
         {
             this.backgrounds.forEach(strip => this.scrollStrip(strip))
 
-            // Keep the switches in the visible top-right corner.
+            // Keep the switches and coins inside the visible corners.
+            let left = Math.ceil(Overlay.visibleBounds().left)
+            this.coinIcon.x = left + 4
+            this.coinText.x = left + 19
             let right = Math.floor(Overlay.visibleBounds().right)
             this.sfxToggle.moveTo(right - 22, 6)
             this.musicToggle.moveTo(right - 42, 6)

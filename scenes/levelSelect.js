@@ -27,6 +27,7 @@ class LevelSelect extends Phaser.Scene
     preload()
     {
         this.load.audio("menuMove", "assets/sounds/coin.wav")
+        this.load.audio("locked", "assets/sounds/bump.wav")
         LEVEL_SELECT.forEach((entry, i) =>
         {
             this.load.image("levelPicture" + i, "assets/levelselect/level" + i + ".png")
@@ -57,6 +58,9 @@ class LevelSelect extends Phaser.Scene
             this.makeArrow(px - 16, py + PICTURE.h / 2, -1),
             this.makeArrow(px + PICTURE.w + 16, py + PICTURE.h / 2, 1)
         ]
+
+        // Padlock over stages not reached yet.
+        this.lock = this.add.image(cx, py + PICTURE.h / 2, pixelTexture(this, "lockIcon", LOCK_ICON, LOCK_PALETTE)).setScale(3)
 
         this.titleText = addNesText(this, cx, py + PICTURE.h + 12, "", "#ffffff", true)
         this.actText = addNesText(this, cx, py + PICTURE.h + 24, "", "#a0a0a0", true)
@@ -103,8 +107,13 @@ class LevelSelect extends Phaser.Scene
         this.picture.setPosition(this.picturePos.x - cropX, this.picturePos.y - entry.cropY)
         this.picture.input.hitArea.setTo(cropX, entry.cropY, PICTURE.w, PICTURE.h)
 
+        // Locked until the stage before it is got through.
+        let unlocked = Progress.isUnlocked(this.index)
+        this.picture.setTint(unlocked ? 0xffffff : 0x303030)
+        this.lock.setVisible(!unlocked)
+
         this.setCenteredText(this.titleText, entry.title)
-        this.setCenteredText(this.actText, entry.act + "   " + (this.index + 1) + " OF " + count)
+        this.setCenteredText(this.actText, (unlocked ? entry.act : "LOCKED") + "   " + (this.index + 1) + " OF " + count)
     }
 
     setCenteredText(text, value)
@@ -123,11 +132,18 @@ class LevelSelect extends Phaser.Scene
     play()
     {
         if (this.leaving) return
+        if (!Progress.isUnlocked(this.index))
+        {
+            this.sound.play("locked")
+            this.cameras.main.shake(100, 0.005)
+            return
+        }
         this.leaving = true
         Hints.hide()
 
         let entry = LEVEL_SELECT[this.index]
         currentLevel = entry.level
+        carriedCharge = 0
         this.cameras.main.fadeOut(1500)
         this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(entry.scene || "Level"))
     }

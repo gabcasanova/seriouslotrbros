@@ -23,6 +23,7 @@ class Item extends Phaser.Physics.Arcade.Sprite
                 scene.physics.add.overlap(this, scene.player, function()
                 {
                     scene.sound.play("coin")
+                    scene.coinsCollected.add(this.coinId)
                     this.destroy()
                 }, null, this)
                 break

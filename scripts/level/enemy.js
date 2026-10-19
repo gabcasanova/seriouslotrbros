@@ -75,8 +75,15 @@ class Enemy extends Phaser.Physics.Arcade.Sprite
         scene.physics.add.overlap(this, scene.player.projectileGroup, function(_this, _projectile)
         {
             _projectile.destroy()
+            if (!this.enemyDead) scene.player.addCharge(1)
             this.enemyHealth -= 1
             this.scene.cameras.main.shake(50, 0.003);
+        }, null, this)
+
+        // Super charge: passes through, hurting each enemy once.
+        scene.physics.add.overlap(this, scene.player.superGroup, function(_this, slash)
+        {
+            if (!this.enemyDead && slash.hit(this)) this.enemyHealth -= slash.damage
         }, null, this)
 
         // Hurt player.

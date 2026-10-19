@@ -1,3 +1,6 @@
+// Enemy hits needed to fill the super charge.
+const SUPER_CHARGE_MAX = 12
+
 class Player extends Phaser.Physics.Arcade.Sprite
 {
     constructor(scene, x, y, sprite)
@@ -122,6 +125,10 @@ class Player extends Phaser.Physics.Arcade.Sprite
         // Projectiles
         this.projectileCounter = 0
         this.projectileGroup = scene.physics.add.group()
+
+        // Super charge: filled by hitting enemies, spent on a mega slash.
+        this.charge = 0
+        this.superGroup = scene.physics.add.group()
 		
 		// Enemy projectiles.
 		scene.physics.add.overlap(this, scene.enemyProjectiles, function(_this, _projectile)
@@ -135,6 +142,28 @@ class Player extends Phaser.Physics.Arcade.Sprite
 			red: false,
 			yellow: false
 		}
+    }
+
+    // Only Frodo on foot can attack (not Legolas' horse, not Gandalf).
+    canSuper() {
+        return this.sprite == "frodo" && currentLevel != 6
+    }
+
+    superReady() {
+        return this.canSuper() && this.charge >= SUPER_CHARGE_MAX
+    }
+
+    // Called when one of our sword shots damages an enemy.
+    addCharge(amount) {
+        if (!this.canSuper()) return
+        this.charge = Math.min(SUPER_CHARGE_MAX, this.charge + amount)
+    }
+
+    megaSlash() {
+        this.charge = 0
+        this.superGroup.add(new MegaSlash(this.scene, this.x, this.y, this.flipX))
+        this.scene.sound.play("sword")
+        this.scene.cameras.main.flash(120, 255, 255, 255)
     }
 
     hurt() {
@@ -234,6 +263,11 @@ class Player extends Phaser.Physics.Arcade.Sprite
 					{
 						this.projectileCounter++
 					}
+
+					if (this.superReady() && GameInput.justPressed("super"))
+					{
+						this.megaSlash()
+					}
 				}
 			}
 			else
@@ -301,6 +335,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
                 // Slow death fade (lasts 1.5s, see FADE_SPEED).
                 this.scene.cameras.main.fadeOut(4500, 180, 32, 42)
                 this.scene.cameras.main.once('camerafadeoutcomplete', function (camera) {
+                    carriedCharge = 0 // Dying loses a carried super charge.
                     this.scene.sound.stopAll()
                     this.scene.scene.restart()
                 })

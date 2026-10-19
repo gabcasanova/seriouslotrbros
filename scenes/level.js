@@ -24,6 +24,7 @@ class Level extends Phaser.Scene
         // Load spritesheets.
         this.load.spritesheet("gotThrough", "assets/sprites/gotThrough.png", {frameWidth: 197, frameHeight: 54})
         this.load.spritesheet("cutsceneLevel", "assets/cutscenes/cutsceneLevel.png", {frameWidth: 256, frameHeight: 240})
+        this.load.json("stages", "assets/stages.json")
         this.load.spritesheet("frodo", "assets/sprites/frodo.png", {frameWidth: 33, frameHeight: 33})
         this.load.spritesheet("sam", "assets/sprites/sam.png", {frameWidth: 33, frameHeight: 33})
         this.load.spritesheet("lifebar", "assets/sprites/lifebar.png", {frameWidth: 8, frameHeight: 62})
@@ -82,10 +83,10 @@ class Level extends Phaser.Scene
         blackscreen.setDepth(4)
         blackscreen.setScrollFactor(0, 0)
 
-        let cutsceneLevel = this.add.sprite(config.width/2, config.height/2, "cutsceneLevel", currentLevel)
-        cutsceneLevel.setDepth(4)
-        cutsceneLevel.setScrollFactor(0, 0)
-        cutsceneLevel.setInteractive({cursor: 'pointer'})
+        blackscreen.setInteractive({cursor: 'pointer'})
+
+        // Picture, story and stage name (text from assets/stages.json).
+        let intro = buildStageIntro(this, currentLevel, 4)
 
         // Titlecard: click, key or button starts the level.
         this.briefing = true
@@ -94,7 +95,7 @@ class Level extends Phaser.Scene
             if (!this.briefing) return
             this.briefing = false
 
-            cutsceneLevel.destroy()
+            intro.forEach(o => o.destroy())
             blackscreen.destroy()
             this.player.waitJumpRelease = true
             this.sound.stopAll()
@@ -116,7 +117,7 @@ class Level extends Phaser.Scene
             })
         }
 
-        cutsceneLevel.on('pointerdown', this.startLevel, this);
+        blackscreen.on('pointerdown', this.startLevel, this);
         Hints.show([{action: "confirm", label: "START"}])
 		
 		// Enemy projectiles group.
@@ -154,6 +155,10 @@ class Level extends Phaser.Scene
         this.physics.add.collider(this.aiPlayer, this.layers[1]);
 		
 		this.importObjects(this.layers[3]) // Import objects from map.
+		if (this.coinIds.length != COINS_PER_STAGE[currentLevel])
+		{
+			console.warn("Stage " + currentLevel + " has " + this.coinIds.length + " coins; update COINS_PER_STAGE in scripts/coins.js.")
+		}
 		
 		// Destroy AI player if disabled in map.
         if (!map.properties[0].value)
@@ -173,6 +178,11 @@ class Level extends Phaser.Scene
         this.lifebar = this.add.sprite(10, config.height/2, "lifebar", this.player.lives)
         this.lifebar.setScrollFactor(0)
         this.lifebar.setDepth(3)
+
+        // Super charge bar and keys, top-left.
+        if (this.player.canSuper()) this.player.charge = carriedCharge
+        this.hud = new LevelHud(this)
+        this.superShown = false
 		
 		this.cameraLock = false
         this.levelFinished = false
@@ -206,6 +216,10 @@ class Level extends Phaser.Scene
 
     importObjects(layer)
     {
+        // Coins in this stage, and the ones picked up this run.
+        this.coinIds = []
+        this.coinsCollected = new Set()
+
         // Import objects from layer.
         layer.forEach(object => 
         {
@@ -228,7 +242,12 @@ class Level extends Phaser.Scene
 				case "redBlock":
 				case "yellowBlock":
 				case "shooter":
-                    new Item(this, object.x, object.y, object.type, object.flippedVertical, object.flippedHorizontal)
+                    let item = new Item(this, object.x, object.y, object.type, object.flippedVertical, object.flippedHorizontal)
+                    if (object.type == "coin")
+                    {
+                        item.coinId = object.id
+                        this.coinIds.push(object.id)
+                    }
                     break
 					
                 case "orc":
@@ -264,12 +283,14 @@ class Level extends Phaser.Scene
         }
         else
         {
-            Hints.show([
+            let hints = [
                 {action: "move", label: "MOVE"},
                 {action: "jump", label: "JUMP"},
-                {action: "attack", label: "ATTACK"},
-                {action: "pause", label: "PAUSE", top: true}
-            ])
+                {action: "attack", label: "ATTACK"}
+            ]
+            if (this.player.superReady()) hints.push({action: "super", label: "SUPER"})
+            hints.push({action: "pause", label: "PAUSE", top: true})
+            Hints.show(hints)
         }
     }
 
@@ -291,6 +312,15 @@ class Level extends Phaser.Scene
             Hints.hide()
         }
 
+        // Show the SUPER control once the bar is full, hide it once used.
+        if (this.player.canMove && !this.levelFinished && this.player.lives > 0 &&
+            this.player.superReady() != this.superShown)
+        {
+            this.superShown = this.player.superReady()
+            this.showPlayHints()
+        }
+        this.hud.update()
+
         // Update lifebar.
         this.lifebar.setFrame(this.player.lives)
 
@@ -304,6 +334,18 @@ class Level extends Phaser.Scene
                 this.caradhrasSnowSmall.tilePositionY -= 0.5
             }
         }
+    }
+
+    // Count this stage's coins into the saved total, then run `done`.
+    coinTally(done)
+    {
+        // Stages without coins (Moria act 1) just wait like before.
+        if (this.coinIds.length == 0)
+        {
+            this.time.delayedCall(4000, done)
+            return
+        }
+        runCoinTally(this, this.coinsCollected.size, "COINS", 156, done)
     }
 
     finishLevel()
@@ -327,15 +369,24 @@ class Level extends Phaser.Scene
             ease: 'Bounce.easeOut',
             duration: 2000,
             repeat: 0,
-            yoyo: false,
-            completeDelay: 4000
+            yoyo: false
         })
 
+        // Count this stage's coins into the total, then fade out.
         finishTween.on("complete", function(tween, targets) {
-            this.cameras.main.fadeOut(1000)
+            this.coinTally(() => this.cameras.main.fadeOut(1000))
         }, this)
 
         this.cameras.main.once('camerafadeoutcomplete', function (camera) {
+            Progress.clear(currentLevel)
+
+            // A full charge comes along to the next stage. Stages where it
+            // can't be used (the horse ride) pass it on untouched.
+            if (this.player.canSuper())
+            {
+                carriedCharge = this.player.superReady() ? SUPER_CHARGE_MAX : 0
+            }
+
             if (currentLevel < 9)
             {
                 currentLevel += 1

@@ -114,6 +114,7 @@ class Pause extends Phaser.Scene
     {
         this.leave(() =>
         {
+            carriedCharge = 0 // Restarting counts as a fresh try.
             this.scene.get(this.target).scene.restart()
             this.scene.stop()
         })

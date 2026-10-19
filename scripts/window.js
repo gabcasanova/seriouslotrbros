@@ -169,8 +169,9 @@ function addNesText(scene, x, y, text, color, center, outline)
     return t
 }
 
-// Texture from rows of pixels: "#" white, "r" red, anything else clear.
-function pixelTexture(scene, key, rows)
+// Texture from rows of pixels: "#" white, "r" red, or letters looked up
+// in `palette`; anything else is clear.
+function pixelTexture(scene, key, rows, palette)
 {
     if (scene.textures.exists(key)) return key
 
@@ -180,7 +181,8 @@ function pixelTexture(scene, key, rows)
     let ctx = canvas.getContext("2d")
     rows.forEach((row, y) => [...row].forEach((p, x) =>
     {
-        if (p == "#") ctx.fillStyle = "#ffffff"
+        if (palette && palette[p]) ctx.fillStyle = palette[p]
+        else if (p == "#") ctx.fillStyle = "#ffffff"
         else if (p == "r") ctx.fillStyle = "#d82800"
         else return
         ctx.fillRect(x, y, 1, 1)
@@ -283,3 +285,25 @@ class SoundToggle
         AudioSettings.toggle(this.kind)
     }
 }
+
+// Padlock: gold body, steel shackle, black outline and keyhole.
+const LOCK_ICON = [
+    "....kkkkkk....",
+    "...kggggggk...",
+    "..kggkkkkgdk..",
+    "..kgk....kdk..",
+    "..kgk....kdk..",
+    "..kgk....kdk..",
+    "kkkkkkkkkkkkkk",
+    "kwwyyyyyyyyyok",
+    "kwyyyyyyyyyyok",
+    "kyyyyykkyyyyok",
+    "kyyyykkkkyyyok",
+    "kyyyykkkkyyyok",
+    "kyyyyykkyyyyok",
+    "kyyyyykkyyyyok",
+    "kooooooooooook",
+    "kkkkkkkkkkkkkk"
+]
+
+const LOCK_PALETTE = {k: "#000000", g: "#bcbcbc", d: "#747474", y: "#f8b800", w: "#fce0a8", o: "#ac7c00"}
