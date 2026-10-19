@@ -109,6 +109,9 @@ class Item extends Phaser.Physics.Arcade.Sprite
 				// Player
                 scene.physics.add.overlap(this, scene.player, function()
                 {
+					// Too late if the player is already dying.
+					if (scene.player.lives <= 0) return
+
 					scene.levelFinished = true
 
 					scene.player.canMove = false

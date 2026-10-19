@@ -80,6 +80,11 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		this.setMaxVelocity(500, 500)
         scene.cameras.main.startFollow(this, true, 0.2, 1)
 
+        // Recent positions (one per frame) and whether a jump started there,
+        // which the AI companions follow.
+        this.trail = []
+        this.jumpedThisFrame = false
+
         // Set when the level starts, so the button that skipped the
         // titlecard doesn't also make the player jump.
         this.waitJumpRelease = false
@@ -133,6 +138,9 @@ class Player extends Phaser.Physics.Arcade.Sprite
     }
 
     hurt() {
+        // Nothing can hurt you once you've reached the end of the level.
+        if (this.scene.levelFinished) return
+
         if (this.timer.execute) {
             this.scene.cameras.main.shake(100, 0.007);
             this.scene.sound.play("bump")
@@ -203,6 +211,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				{
 					this.setVelocityY(-170)
 					this.scene.sound.play("jump")
+					this.jumpedThisFrame = true
 				}
 				
 				// Jumping animation.
@@ -258,6 +267,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				{
 					this.setVelocityY(-190)
 					this.scene.sound.play("jump")
+					this.jumpedThisFrame = true
 				}
 			}
         }
@@ -275,9 +285,19 @@ class Player extends Phaser.Physics.Arcade.Sprite
             this.timer.execute = true
         }
 
+        // Remember where we've been, for the companions to follow.
+        this.trail.push({x: this.x, y: this.y, jumped: this.jumpedThisFrame})
+        if (this.trail.length > 240) this.trail.shift()
+        this.jumpedThisFrame = false
+
         // Restart level with a fade out.
-        if (this.lives <= 0) {
+        if (this.lives <= 0 && !this.scene.levelFinished) {
             if (!this.fading) {
+                // No more control while dying.
+                this.canMove = false
+                this.setVelocityX(0)
+                this.play(currentLevel == 6 ? "legolasHorseIdle" : "idle", true)
+
                 // Slow death fade (lasts 1.5s, see FADE_SPEED).
                 this.scene.cameras.main.fadeOut(4500, 180, 32, 42)
                 this.scene.cameras.main.once('camerafadeoutcomplete', function (camera) {
