@@ -98,8 +98,13 @@ class Menu extends Phaser.Scene
             scene.leaveTo("Credits")
         })
 
+        // Music and sound effect switches, top-right.
+        this.musicToggle = new SoundToggle(this, config.width - 42, 6, "music")
+        this.sfxToggle = new SoundToggle(this, config.width - 22, 6, "sfx")
+
         // Keyboard / gamepad selection. The mouse hovering a button selects it too.
-        this.buttons = [this.playButton, this.levelsButton, this.creditsButton]
+        // The three menu buttons come first, then the two switches.
+        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle]
         this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
         this.select(0)
 
@@ -156,11 +161,22 @@ class Menu extends Phaser.Scene
         {
             this.backgrounds.forEach(strip => this.scrollStrip(strip))
 
+            // Keep the switches in the visible top-right corner.
+            let right = Math.floor(Overlay.visibleBounds().right)
+            this.sfxToggle.moveTo(right - 22, 6)
+            this.musicToggle.moveTo(right - 42, 6)
+
             if (!this.fadeStarted && this.time.now >= this.acceptInputAt)
             {
-                let count = this.buttons.length
-                if (GameInput.justPressed("down")) this.select((this.selected + 1) % count)
-                if (GameInput.justPressed("up"))   this.select((this.selected + count - 1) % count)
+                // Up from the top button reaches the switches; left/right
+                // moves between them, down goes back to the buttons.
+                let onSwitch = this.selected >= 3
+                if (GameInput.justPressed("down")) this.select(onSwitch ? 0 : (this.selected + 1) % 3)
+                if (GameInput.justPressed("up"))   this.select(onSwitch ? this.selected : (this.selected == 0 ? 3 : this.selected - 1))
+                if (this.selected >= 3 && (GameInput.justPressed("left") || GameInput.justPressed("right")))
+                {
+                    this.select(this.selected == 3 ? 4 : 3)
+                }
                 if (GameInput.justPressed("confirm")) this.buttons[this.selected].press()
             }
         }

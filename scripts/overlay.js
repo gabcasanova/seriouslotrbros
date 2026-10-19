@@ -27,6 +27,18 @@ const Overlay = {
         this.fit()
     },
 
+    // Part of the game (in game pixels) that's inside the window; the
+    // canvas is cropped at the sides when the window is narrow.
+    visibleBounds()
+    {
+        let r = this.canvas.getBoundingClientRect()
+        let px = r.width / config.width
+        return {
+            left: Math.max(0, -r.left) / px,
+            right: config.width - Math.max(0, r.right - window.innerWidth) / px
+        }
+    },
+
     // Match the canvas' on-screen box.
     fit()
     {
@@ -339,7 +351,7 @@ class Cutscene
         // Retry with sound on the next real interaction if autoplay was blocked.
         this.unlock = () =>
         {
-            if (this.video && this.video.muted)
+            if (this.video && this.video.muted && AudioSettings.music)
             {
                 this.video.muted = false
             }
@@ -350,6 +362,8 @@ class Cutscene
 
     play()
     {
+        // Cutscene sound counts as music.
+        this.video.muted = !AudioSettings.music
         let attempt = this.video.play()
         if (attempt)
         {

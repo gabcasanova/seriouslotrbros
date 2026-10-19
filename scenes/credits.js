@@ -18,7 +18,10 @@ class Credits extends Phaser.Scene
         this.musicVolume = 1
         this.leaving = false
         this.music = this.sound.add("creditsMusic")
-        this.text = this.add.text(config.width/4.5, config.height, this.cache.text.get("credits"), {font: "13px Arial", align: "center"})
+        // NES font, all caps (its lowercase letters are unreadable).
+        let credits = this.cache.text.get("credits").split(/\r?\n/).map(line => line.trim()).join("\n").toUpperCase()
+        this.text = new NesText(this, 0, config.height, credits, "#ffffff", false, 12)
+        this.text.x = Math.round(config.width / 2 - this.text.width / 2)
 
         // Click, key or button skips: first the ending video, then the credits.
         this.input.setDefaultCursor('pointer')

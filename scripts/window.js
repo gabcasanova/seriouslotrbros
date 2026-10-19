@@ -1,6 +1,6 @@
-// 8-bit style window: black box with a 2-pixel white outline and
-// notched corners, like NES RPG menus.
-function drawWindow(graphics, x, y, w, h, fill)
+// 8-bit style window: black box with a 2-pixel white (or `color`) outline
+// and notched corners, like NES RPG menus.
+function drawWindow(graphics, x, y, w, h, fill, color)
 {
     if (fill !== false)
     {
@@ -8,7 +8,7 @@ function drawWindow(graphics, x, y, w, h, fill)
         graphics.fillRect(x + 1, y + 1, w - 2, h - 2)
     }
 
-    graphics.fillStyle(0xffffff, 1)
+    graphics.fillStyle(color === undefined ? 0xffffff : color, 1)
     graphics.fillRect(x + 2, y, w - 4, 2)         // Top.
     graphics.fillRect(x + 2, y + h - 2, w - 4, 2) // Bottom.
     graphics.fillRect(x, y + 2, 2, h - 4)         // Left.
@@ -26,17 +26,26 @@ function drawWindow(graphics, x, y, w, h, fill)
 // Text in the NES font, pixel-exact. Browsers blur the font at its native
 // 8px, but at 64px every font pixel is a clean 8x8 square on the grid, so
 // the text is drawn 8x bigger and each square sampled down to one pixel.
-// (The font has no "/" character.) With outline, a 1-pixel black border
-// is added around the letters, so the image is 1 pixel bigger on each side.
+// Characters the font lacks are drawn from NES_EXTRA_GLYPHS. With outline,
+// a 1-pixel black border is added, so the image is 1 pixel bigger on each
+// side. Multi-line text is centered line by line.
+const NES_EXTRA_GLYPHS = {
+    "/": ["........", ".....##.", "....##..", "...##...", "..##....", ".##.....", "##......", "........"],
+    "(": ["........", "...##...", "..##....", ".##.....", ".##.....", ".##.....", "..##....", "...##..."],
+    ")": ["........", ".##.....", "..##....", "...##...", "...##...", "...##...", "..##....", ".##....."],
+    "=": ["........", "........", ".######.", "........", "........", ".######.", "........", "........"]
+}
+
 class NesText extends Phaser.GameObjects.Image
 {
-    constructor(scene, x, y, text, color, outline)
+    constructor(scene, x, y, text, color, outline, lineHeight)
     {
         super(scene, x, y, "__DEFAULT")
         this.setOrigin(0, 0)
         this.textureKey = "nesText" + (NesText.count++)
         this.color = color || "#ffffff"
         this.outline = !!outline
+        this.lineHeight = lineHeight || 10
         this.text = ""
         scene.add.existing(this)
         this.setText(text)
@@ -64,22 +73,49 @@ class NesText extends Phaser.GameObjects.Image
     redraw()
     {
         const SCALE = 8
-        let w = Math.max(1, this.text.length * 8)
-        let h = 8
+        let lines = this.text.split(/\r?\n/)
+        let w = Math.max(1, ...lines.map(l => l.length * 8))
+        let h = (lines.length - 1) * this.lineHeight + 8
 
-        let big = document.createElement("canvas")
-        big.width = w * SCALE
-        big.height = h * SCALE
-        let bctx = big.getContext("2d")
-        bctx.font = (8 * SCALE) + "px NES"
-        bctx.textBaseline = "top"
-        bctx.fillStyle = "#ffffff"
-        bctx.fillText(this.text, 0, 0)
-        let src = bctx.getImageData(0, 0, big.width, big.height).data
+        // Which pixels are lit.
+        let mask = new Uint8Array(w * h)
+        lines.forEach((line, n) =>
+        {
+            if (!line.length) return
+            let ox = Math.round((w - line.length * 8) / 2)
+            let oy = n * this.lineHeight
 
-        // Which pixels are lit: the center of each font pixel's 8x8 square.
-        let lit = (x, y) => x >= 0 && y >= 0 && x < w && y < h &&
-            src[((y * SCALE + SCALE / 2) * big.width + x * SCALE + SCALE / 2) * 4 + 3] >= 128
+            let big = document.createElement("canvas")
+            big.width = line.length * 8 * SCALE
+            big.height = 8 * SCALE
+            let ctx = big.getContext("2d")
+            ctx.font = (8 * SCALE) + "px NES"
+            ctx.textBaseline = "top"
+            ctx.fillStyle = "#ffffff"
+            // Draw each character in its own cell, so a missing one can't
+            // shift the rest.
+            ;[...line].forEach((ch, i) =>
+            {
+                if (!NES_EXTRA_GLYPHS[ch]) ctx.fillText(ch, i * 8 * SCALE, 0)
+            })
+            let src = ctx.getImageData(0, 0, big.width, big.height).data
+
+            ;[...line].forEach((ch, i) =>
+            {
+                let extra = NES_EXTRA_GLYPHS[ch]
+                for (let y = 0; y < 8; y++)
+                {
+                    for (let x = 0; x < 8; x++)
+                    {
+                        let on = extra ? extra[y][x] == "#" :
+                            src[((y * SCALE + SCALE / 2) * big.width + (i * 8 + x) * SCALE + SCALE / 2) * 4 + 3] >= 128
+                        if (on) mask[(oy + y) * w + ox + i * 8 + x] = 1
+                    }
+                }
+            })
+        })
+
+        let lit = (x, y) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] == 1
 
         let pad = this.outline ? 1 : 0
         let ow = w + pad * 2
@@ -117,6 +153,7 @@ class NesText extends Phaser.GameObjects.Image
         textures.addCanvas(this.textureKey, small)
         this.setTexture(this.textureKey)
         this.setSize(ow, oh)
+        if (this.input) this.input.hitArea.setSize(ow, oh)
     }
 }
 NesText.count = 0
@@ -130,4 +167,119 @@ function addNesText(scene, x, y, text, color, center, outline)
     let pad = outline ? 1 : 0
     t.setPosition(Math.round(center ? x - t.width / 2 : x - pad), Math.round(y - pad))
     return t
+}
+
+// Texture from rows of pixels: "#" white, "r" red, anything else clear.
+function pixelTexture(scene, key, rows)
+{
+    if (scene.textures.exists(key)) return key
+
+    let canvas = document.createElement("canvas")
+    canvas.width = rows[0].length
+    canvas.height = rows.length
+    let ctx = canvas.getContext("2d")
+    rows.forEach((row, y) => [...row].forEach((p, x) =>
+    {
+        if (p == "#") ctx.fillStyle = "#ffffff"
+        else if (p == "r") ctx.fillStyle = "#d82800"
+        else return
+        ctx.fillRect(x, y, 1, 1)
+    }))
+    scene.textures.addCanvas(key, canvas)
+    return key
+}
+
+// Same icon with a red slash across it, for "off".
+function slashedIcon(rows)
+{
+    let h = rows.length
+    let w = rows[0].length
+    return rows.map((row, y) => [...row].map((p, x) =>
+    {
+        let d = Math.round(x * (h - 1) / (w - 1)) - y
+        return (d == 0 || d == 1) ? "r" : p
+    }).join(""))
+}
+
+const MUSIC_ICON = [
+    "...######.",
+    "...######.",
+    "...#....#.",
+    "...#....#.",
+    "...#....#.",
+    ".###..###.",
+    "####.####.",
+    "####.####.",
+    ".##...##.."
+]
+
+const SPEAKER_ICON = [
+    "....#.....",
+    "...##...#.",
+    "#####.#..#",
+    "#####..#.#",
+    "#####..#.#",
+    "#####.#..#",
+    "...##...#.",
+    "....#.....",
+    ".........."
+]
+
+// Small 16x16 window with an icon that switches music or sound effects
+// on and off. Outline is white while selected, gray otherwise.
+class SoundToggle
+{
+    constructor(scene, x, y, kind)
+    {
+        this.scene = scene
+        this.x = x
+        this.y = y
+        this.kind = kind
+        this.selected = false
+        this.onHover = null
+
+        let rows = (kind == "music") ? MUSIC_ICON : SPEAKER_ICON
+        this.onKey = pixelTexture(scene, kind + "IconOn", rows)
+        this.offKey = pixelTexture(scene, kind + "IconOff", slashedIcon(rows))
+
+        this.graphics = scene.add.graphics()
+        this.icon = scene.add.image(x + 3, y + 4, this.onKey).setOrigin(0, 0)
+
+        this.hitArea = new Phaser.Geom.Rectangle(x, y, 16, 16)
+        this.graphics.setInteractive(this.hitArea, Phaser.Geom.Rectangle.Contains)
+        this.graphics.input.cursor = 'pointer'
+        this.graphics.on('pointerover', () => { if (this.onHover) this.onHover(this) })
+        this.graphics.on('pointerdown', () => this.press())
+
+        this.refresh = () =>
+        {
+            this.icon.setTexture(AudioSettings[this.kind] ? this.onKey : this.offKey)
+        }
+        AudioSettings.onChange(this.refresh)
+        scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => AudioSettings.offChange(this.refresh))
+
+        this.refresh()
+        this.setSelected(false)
+    }
+
+    setSelected(selected)
+    {
+        this.selected = selected
+        drawWindow(this.graphics.clear(), this.x, this.y, 16, 16, true, selected ? 0xffffff : 0x7c7c7c)
+    }
+
+    moveTo(x, y)
+    {
+        if (x == this.x && y == this.y) return
+        this.x = x
+        this.y = y
+        this.icon.setPosition(x + 3, y + 4)
+        this.hitArea.setPosition(x, y)
+        this.setSelected(this.selected)
+    }
+
+    press()
+    {
+        AudioSettings.toggle(this.kind)
+    }
 }

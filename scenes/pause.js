@@ -25,21 +25,24 @@ class Pause extends Phaser.Scene
         this.leaving = false
 
         let w = 112
-        let h = 64
+        let h = 88
         let x = Math.round((config.width - w) / 2)
         let y = Math.round((config.height - h) / 2)
 
         drawWindow(this.add.graphics(), x, y, w, h)
         addNesText(this, config.width / 2, y + 8, "PAUSE", "#ffffff", true)
 
+        let onOff = (kind) => AudioSettings[kind] ? "ON" : "OFF"
         this.options = [
-            {label: "RESUME",    action: () => this.resume()},
-            {label: "RESTART",   action: () => this.restart()},
-            {label: "MAIN MENU", action: () => this.toMenu()}
+            {label: () => "RESUME",    action: () => this.resume()},
+            {label: () => "RESTART",   action: () => this.restart()},
+            {label: () => "MUSIC: " + onOff("music"), action: () => this.toggle("music"), toggle: true},
+            {label: () => "SFX: " + onOff("sfx"),     action: () => this.toggle("sfx"), toggle: true},
+            {label: () => "MAIN MENU", action: () => this.toMenu()}
         ]
         this.options.forEach((option, i) =>
         {
-            option.text = addNesText(this, x + 22, y + 24 + i * 12, option.label)
+            option.text = addNesText(this, x + 22, y + 24 + i * 12, option.label())
                 .setInteractive({cursor: 'pointer'})
             option.text.on('pointerover', () => this.select(i))
             option.text.on('pointerdown', () => { this.select(i); this.choose() })
@@ -74,6 +77,15 @@ class Pause extends Phaser.Scene
     {
         if (this.leaving) return
         this.options[this.selected].action()
+    }
+
+    // Switch music or sound effects and update the option's ON/OFF.
+    toggle(kind)
+    {
+        AudioSettings.toggle(kind)
+        let option = this.options[this.selected]
+        option.text.setText(option.label())
+        this.select(this.selected)
     }
 
     resume()
@@ -124,7 +136,9 @@ class Pause extends Phaser.Scene
         if (GameInput.justPressed("down")) this.select((this.selected + 1) % count)
         if (GameInput.justPressed("up"))   this.select((this.selected + count - 1) % count)
 
-        if (GameInput.justPressed("confirm"))
+        let option = this.options[this.selected]
+        if (GameInput.justPressed("confirm") ||
+            (option.toggle && (GameInput.justPressed("left") || GameInput.justPressed("right"))))
         {
             this.choose()
         }
