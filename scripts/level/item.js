@@ -1,3 +1,6 @@
+// Rings a life pickup is worth when playing as Sonic.
+const LIFE_RING_VALUE = 10
+
 class Item extends Phaser.Physics.Arcade.Sprite
 {
     constructor(scene, x, y, type, flippedVertical, flippedHorizontal)
@@ -22,8 +25,9 @@ class Item extends Phaser.Physics.Arcade.Sprite
                 this.setFrame(1)
                 scene.physics.add.overlap(this, scene.player, function()
                 {
-                    scene.sound.play("coin")
+                    scene.sound.play(scene.sonic ? "ring" : "coin")
                     scene.coinsCollected.add(this.coinId)
+                    scene.coinCount++
                     this.destroy()
                 }, null, this)
                 break
@@ -55,8 +59,8 @@ class Item extends Phaser.Physics.Arcade.Sprite
                     {
                         if (_player.body.touching.down && _this.body.touching.up)
                         {
-                            scene.sound.play("spring")
-                            scene.player.setVelocityY(-250)
+                            if (!scene.sonic) scene.sound.play("spring") // Sonic has his own.
+                            scene.player.springLaunch()
                         }
                     }
                 )
@@ -90,6 +94,19 @@ class Item extends Phaser.Physics.Arcade.Sprite
 
             case "life":
                 this.setFrame(7)
+
+                // Sonic has rings instead of lives: a ring worth several.
+                if (scene.sonic)
+                {
+                    this.play(ringAnimation(scene))
+                    scene.physics.add.overlap(this, scene.player, function()
+                    {
+                        scene.coinCount += LIFE_RING_VALUE
+                        scene.sound.play("ring")
+                        this.destroy()
+                    }, null, this)
+                    break
+                }
 				
 				// Player
                 scene.physics.add.overlap(this, scene.player, function()

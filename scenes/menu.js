@@ -33,25 +33,90 @@ class Menu extends Phaser.Scene
 			return
 		}
 
-		// Intro plays in the HTML layer at full resolution.
-		this.cutscene = new Cutscene(this, "assets/cutscenes/intro.mp4", () => this.endCutscene()).play()
+		// Before the title: the PEGI rating, the intro, then a note about
+		// controls. Click, key or button skips each one.
+		this.sequence = [
+			() => this.playVideo("assets/cutscenes/pegi67.mp4", true),
+			() => this.playVideo("assets/cutscenes/intro.mp4", false),
+			() => this.showControlsNote()
+		]
+		this.step = -1
 		this.input.setDefaultCursor('pointer')
 		this.input.on('pointerdown', () => this.skipCutscene())
-
-		Hints.show([{action: "skip", label: "SKIP"}])
+		this.nextStep()
     }
 
-	// Fade out the intro early.
+	nextStep()
+	{
+		if (this.menuPlaying) return
+		if (this.cutscene) this.cutscene.destroy()
+		this.cutscene = null
+		if (this.note) this.note.forEach(o => o.destroy())
+		this.note = null
+
+		this.step++
+		if (this.step < this.sequence.length)
+		{
+			this.cutscenePlaying = true
+			Hints.show([{action: "skip", label: "SKIP"}])
+			this.sequence[this.step]()
+		}
+		else
+		{
+			this.endCutscene()
+		}
+	}
+
+	// Moves on from step `step` (ignored if that step is already over).
+	finishStep(step)
+	{
+		if (step == this.step) this.nextStep()
+	}
+
+	// Videos play in the HTML layer at full resolution; `framed` shows a
+	// smaller one instead of filling the screen.
+	playVideo(src, framed)
+	{
+		let step = this.step
+		this.cutscene = new Cutscene(this, src, () => this.finishStep(step), framed).play()
+	}
+
+	showControlsNote()
+	{
+		let step = this.step
+		let cx = config.width / 2
+		let w = 200
+		let x = Math.round(cx - w / 2)
+		this.note = [
+			drawWindow(this.add.graphics(), x, 96, w, 48),
+			addNesText(this, cx, 108, "KEYBOARD AND GAMEPAD", "#f8b800", true),
+			addNesText(this, cx, 124, "COMPATIBLE", "#ffffff", true)
+		]
+		this.cameras.main.fadeIn(1000)
+		this.noteTimer = this.time.delayedCall(3000, () => this.fadeNote(step))
+	}
+
+	fadeNote(step)
+	{
+		if (step != this.step) return
+		if (this.noteTimer) this.noteTimer.remove()
+		this.cameras.main.fadeOut(1000)
+		this.cameras.main.once('camerafadeoutcomplete', () => this.finishStep(step))
+	}
+
+	// Skips whatever is showing.
 	skipCutscene()
 	{
 		if (!this.cutscenePlaying) return
 		this.cutscenePlaying = false
 		Hints.hide()
 
-		this.cutscene.fadeOut(2000, () => this.endCutscene())
+		let step = this.step
+		if (this.cutscene) this.cutscene.fadeOut(2000, () => this.finishStep(step))
+		else this.fadeNote(step)
 	}
 
-	// Runs once, whether the intro ended by itself or was skipped.
+	// Runs once, after the last step.
 	endCutscene()
 	{
 		if (this.menuPlaying) return
@@ -91,15 +156,25 @@ class Menu extends Phaser.Scene
             scene.leaveTo("Level")
         })
 
-        this.levelsButton = new Button(this, config.width/2, 190, 6, function levelsAction(scene)
+        // Levels and Shop side by side.
+        this.levelsButton = new Button(this, config.width/2 - 39, 190, 6, function levelsAction(scene)
         {
             scene.leaveTo("LevelSelect")
+        })
+
+        this.shopButton = new Button(this, config.width/2 + 39, 190, 8, function shopAction(scene)
+        {
+            scene.leaveTo("Shop")
         })
 
         this.creditsButton = new Button(this, config.width/2, 216, 4, function creditsAction(scene)
         {
             scene.leaveTo("Credits")
         })
+
+        // Credit line, top center.
+        addNesText(this, config.width / 2, 6, "BY GABRIEL CASANOVA 2021, 2026", "#ffffff", true, true)
+        addNesText(this, config.width / 2, 18, "NON-COMMERCIAL FAN PROJECT", "#bcbcbc", true, true)
 
         // Every coin ever collected, top-left.
         this.coinIcon = this.add.image(4, 6, "items", 1).setOrigin(0, 0)
@@ -123,7 +198,9 @@ class Menu extends Phaser.Scene
 
         // Keyboard / gamepad selection. The mouse hovering a button selects it too.
         // The three menu buttons come first, then the two switches.
-        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle]
+        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle, this.shopButton]
+        // Layout for keyboard / gamepad: rows of button indices, top to bottom.
+        this.grid = [[3, 4], [0], [1, 5], [2]]
         this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
         this.select(0)
 
@@ -215,15 +292,15 @@ class Menu extends Phaser.Scene
 
             if (!this.fadeStarted && this.time.now >= this.acceptInputAt)
             {
-                // Up from the top button reaches the switches; left/right
-                // moves between them, down goes back to the buttons.
-                let onSwitch = this.selected >= 3
-                if (GameInput.justPressed("down")) this.select(onSwitch ? 0 : (this.selected + 1) % 3)
-                if (GameInput.justPressed("up"))   this.select(onSwitch ? this.selected : (this.selected == 0 ? 3 : this.selected - 1))
-                if (this.selected >= 3 && (GameInput.justPressed("left") || GameInput.justPressed("right")))
-                {
-                    this.select(this.selected == 3 ? 4 : 3)
-                }
+                // Move around the grid: up from New Game reaches the sound
+                // switches, down from Credits wraps to New Game.
+                let r = this.grid.findIndex(row => row.includes(this.selected))
+                let c = this.grid[r].indexOf(this.selected)
+                let go = (row, col) => this.select(this.grid[row][Math.min(col, this.grid[row].length - 1)])
+                if (GameInput.justPressed("down")) go(r == this.grid.length - 1 ? 1 : r + 1, c)
+                else if (GameInput.justPressed("up")) go(Math.max(0, r - 1), c)
+                else if (GameInput.justPressed("left")) go(r, Math.max(0, c - 1))
+                else if (GameInput.justPressed("right")) go(r, c + 1)
                 if (GameInput.justPressed("confirm")) this.buttons[this.selected].press()
             }
         }

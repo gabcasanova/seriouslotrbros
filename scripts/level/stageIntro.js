@@ -5,6 +5,7 @@ const INTRO_CHARS_PER_LINE = [36, 40, 44, 48, 52] // Widest used only if needed.
 const INTRO_TEXT_BOTTOM = 198                     // Keep clear of the stage name.
 const INTRO_LINE_HEIGHT = 9
 const INTRO_PARAGRAPH_GAP = 5
+const INTRO_LETTERS_PER_SECOND = 45 // Typewriter speed.
 
 // Splits "a [red]b c[/] d" into words, each a list of {char, color}.
 function parseIntroText(text, colors)
@@ -65,8 +66,9 @@ function wrapIntroWords(words, width)
     return lines
 }
 
-// Draws one line, as one NesText per run of the same color.
-function drawIntroLine(scene, line, x, y, objects)
+// Draws one line, as one NesText per run of the same color. Each piece is
+// added to `typed` with where it starts in the story, for the typewriter.
+function drawIntroLine(scene, line, x, y, objects, typed, offset)
 {
     let start = 0
     while (start < line.length)
@@ -74,18 +76,26 @@ function drawIntroLine(scene, line, x, y, objects)
         let end = start
         while (end < line.length && line[end].color == line[start].color) end++
         let text = line.slice(start, end).map(c => c.char).join("")
-        if (text.trim()) objects.push(new NesText(scene, x + start * 8, y, text, line[start].color))
+        if (text.trim())
+        {
+            let piece = new NesText(scene, x + start * 8, y, text, line[start].color)
+            objects.push(piece)
+            typed.push({text: piece, start: offset + start, length: text.length})
+        }
         start = end
     }
 }
 
-// Builds the card. Returns its game objects, to destroy when it's dismissed.
+// Builds the card. Returns {objects, update(delta), skip(), done}: the story
+// types itself out letter by letter in update(), skip() shows all of it.
 function buildStageIntro(scene, level, depth)
 {
     let data = scene.cache.json.get("stages")
     let stage = data.stages[level]
     let colors = data.colors
     let objects = []
+    let typed = []
+    let letters = 0
     let cx = config.width / 2
 
     // Picture.
@@ -112,7 +122,8 @@ function buildStageIntro(scene, level, depth)
         for (let line of lines)
         {
             let x = (stage.align == "center") ? Math.round(cx - line.length * 4) : left
-            drawIntroLine(scene, line, x, y, objects)
+            drawIntroLine(scene, line, x, y, objects, typed, letters)
+            letters += line.length
             y += INTRO_LINE_HEIGHT
         }
         y += INTRO_PARAGRAPH_GAP
@@ -135,5 +146,34 @@ function buildStageIntro(scene, level, depth)
 
     objects.forEach(o => o.setScrollFactor(0, 0).setDepth(depth))
 
-    return objects
+    let intro = {
+        objects: objects,
+        shown: 0,
+        done: false,
+
+        // Crops each piece to the letters typed so far.
+        show(count)
+        {
+            this.shown = Math.min(count, letters)
+            for (let t of typed)
+            {
+                let visible = Phaser.Math.Clamp(this.shown - t.start, 0, t.length)
+                t.text.setVisible(visible > 0)
+                t.text.setCrop(0, 0, visible * 8, t.text.height)
+            }
+            this.done = this.shown >= letters
+        },
+
+        update(delta)
+        {
+            if (!this.done) this.show(this.shown + delta / 1000 * INTRO_LETTERS_PER_SECOND)
+        },
+
+        skip()
+        {
+            this.show(letters)
+        }
+    }
+    intro.show(0)
+    return intro
 }

@@ -59,9 +59,6 @@ class LevelSelect extends Phaser.Scene
             this.makeArrow(px + PICTURE.w + 16, py + PICTURE.h / 2, 1)
         ]
 
-        // Padlock over stages not reached yet.
-        this.lock = this.add.image(cx, py + PICTURE.h / 2, pixelTexture(this, "lockIcon", LOCK_ICON, LOCK_PALETTE)).setScale(3)
-
         this.titleText = addNesText(this, cx, py + PICTURE.h + 12, "", "#ffffff", true)
         this.actText = addNesText(this, cx, py + PICTURE.h + 24, "", "#a0a0a0", true)
 
@@ -110,7 +107,6 @@ class LevelSelect extends Phaser.Scene
         // Locked until the stage before it is got through.
         let unlocked = Progress.isUnlocked(this.index)
         this.picture.setTint(unlocked ? 0xffffff : 0x303030)
-        this.lock.setVisible(!unlocked)
 
         this.setCenteredText(this.titleText, entry.title)
         this.setCenteredText(this.actText, (unlocked ? entry.act : "LOCKED") + "   " + (this.index + 1) + " OF " + count)

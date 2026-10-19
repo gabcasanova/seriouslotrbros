@@ -19,20 +19,21 @@ class LevelHud
             this.bar = scene.add.graphics().setScrollFactor(0).setDepth(3)
             this.barX = x + 44
             this.barY = 6
-            x = this.barX + SUPER_CHARGE_MAX * 4 + 3 + 6
         }
 
         // Coins picked up in this stage, below the bar.
         let coinY = this.bar ? 20 : 6
-        this.coinIcon = scene.add.image(4, coinY - 4, "items", 1).setOrigin(0, 0).setScrollFactor(0).setDepth(3)
+        this.coinIcon = scene.add.sprite(4, coinY - 4, "items", 1).setOrigin(0, 0).setScrollFactor(0).setDepth(3)
+        if (scene.sonic) this.coinIcon.play(ringAnimation(scene)) // Rings for Sonic.
         this.coinText = addNesText(scene, 20, coinY, this.coinLabel(), "#ffffff", false, true)
             .setScrollFactor(0).setDepth(3)
         this.coinsShown = 0
 
         // Keys appear next to the bar once picked up.
         this.keys = {
-            red: scene.add.image(x, 2, "items", 4),
-            yellow: scene.add.image(x + 14, 2, "items", 5)
+            // On the coin row, right of the counter ("00/00").
+            red: scene.add.image(66, coinY - 4, "items", 4),
+            yellow: scene.add.image(80, coinY - 4, "items", 5)
         }
         Object.values(this.keys).forEach(key => key.setOrigin(0, 0).setScrollFactor(0).setDepth(3).setVisible(false))
 
@@ -54,7 +55,7 @@ class LevelHud
     coinLabel()
     {
         let pad = n => String(n).padStart(2, "0")
-        return pad(this.scene.coinsCollected.size) + "/" + pad(this.scene.coinIds.length)
+        return pad(this.scene.coinCount) + "/" + pad(this.scene.coinIds.length)
     }
 
     update()
@@ -62,9 +63,9 @@ class LevelHud
         this.followVisibleEdge()
         if (this.bar) this.drawBar()
 
-        if (this.scene.coinsCollected.size != this.coinsShown)
+        if (this.scene.coinCount != this.coinsShown)
         {
-            this.coinsShown = this.scene.coinsCollected.size
+            this.coinsShown = this.scene.coinCount
             this.coinText.setText(this.coinLabel())
         }
 

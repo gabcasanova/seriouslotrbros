@@ -11,8 +11,9 @@ class Player extends Phaser.Physics.Arcade.Sprite
         scene.add.existing(this)
         scene.physics.add.existing(this)
 		this.sprite = sprite
+		this.isSonic = (sprite == "sonicSheet") // Bought in the Shop.
 
-        let playerAnimations = [
+        let playerAnimations = this.isSonic ? this.createSonicAnims() : [
             this.anims.create ({
                 key: "idle",
                 frames: [{key: sprite, frame: 0}],
@@ -81,6 +82,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		
 		this.body.setGravityY(300)
 		this.setMaxVelocity(500, 500)
+		if (this.isSonic) this.setupSonic()
         scene.cameras.main.startFollow(this, true, 0.2, 1)
 
         // Recent positions (one per frame) and whether a jump started there,
@@ -133,7 +135,15 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		// Enemy projectiles.
 		scene.physics.add.overlap(this, scene.enemyProjectiles, function(_this, _projectile)
         {
-            _this.hurt()
+            // Sonic curled up knocks them away instead.
+            if (_this.isSonic && _this.isBall)
+            {
+                _this.scene.sound.play("sword")
+            }
+            else
+            {
+                _this.hurt()
+            }
 			_projectile.destroy()
         }, null, this)
 		
@@ -166,9 +176,18 @@ class Player extends Phaser.Physics.Arcade.Sprite
         this.scene.cameras.main.flash(120, 255, 255, 255)
     }
 
+    // Bounced up by a spring.
+    springLaunch() {
+        if (this.isSonic) this.sonicSpring()
+        else this.setVelocityY(-250)
+    }
+
     hurt() {
         // Nothing can hurt you once you've reached the end of the level.
         if (this.scene.levelFinished) return
+
+        // Sonic has rings instead of lives.
+        if (this.isSonic) return this.sonicHurt()
 
         if (this.timer.execute) {
             this.scene.cameras.main.shake(100, 0.007);
@@ -189,7 +208,11 @@ class Player extends Phaser.Physics.Arcade.Sprite
             this.waitJumpRelease = false
         }
 
-        if (this.canMove)
+        if (this.canMove && this.isSonic)
+        {
+            this.sonicMove(delta)
+        }
+        else if (this.canMove)
         {
 			if (currentLevel != 6)
 			{

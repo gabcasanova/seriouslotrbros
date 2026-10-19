@@ -26,6 +26,18 @@ class Level extends Phaser.Scene
         this.load.spritesheet("cutsceneLevel", "assets/cutscenes/cutsceneLevel.png", {frameWidth: 256, frameHeight: 240})
         this.load.json("stages", "assets/stages.json")
         this.load.spritesheet("frodo", "assets/sprites/frodo.png", {frameWidth: 33, frameHeight: 33})
+        this.load.image("sonicRaw", "assets/sprites/sonic.png")
+
+        // Sonic's sounds (Shop item).
+        if (ShopStore.isOn("sonic"))
+        {
+            this.load.audio("ring", "assets/sounds/ring.mp3")
+            this.load.audio("sonicJump", "assets/sounds/sonicJump.mp3")
+            this.load.audio("sonicSpring", "assets/sounds/sonicSpringBounce.mp3")
+            this.load.audio("sonicSpin", "assets/sounds/spin.mp3")
+            this.load.audio("sonicDash", "assets/sounds/dash.mp3")
+            this.load.audio("sonicKill", "assets/sounds/sonicKill.wav")
+        }
         this.load.spritesheet("sam", "assets/sprites/sam.png", {frameWidth: 33, frameHeight: 33})
         this.load.spritesheet("lifebar", "assets/sprites/lifebar.png", {frameWidth: 8, frameHeight: 62})
         this.load.spritesheet("enemies", "assets/sprites/enemies.png", {frameWidth: 16, frameHeight: 42})
@@ -87,15 +99,22 @@ class Level extends Phaser.Scene
 
         // Picture, story and stage name (text from assets/stages.json).
         let intro = buildStageIntro(this, currentLevel, 4)
+        this.intro = intro
 
-        // Titlecard: click, key or button starts the level.
+        // Titlecard: the story types itself out. A click, key or button shows
+        // all of it, and the next one starts the level.
+        this.advanceIntro = () =>
+        {
+            if (!this.intro.done) this.intro.skip()
+            else this.startLevel()
+        }
         this.briefing = true
         this.startLevel = () =>
         {
             if (!this.briefing) return
             this.briefing = false
 
-            intro.forEach(o => o.destroy())
+            intro.objects.forEach(o => o.destroy())
             blackscreen.destroy()
             this.player.waitJumpRelease = true
             this.sound.stopAll()
@@ -117,14 +136,21 @@ class Level extends Phaser.Scene
             })
         }
 
-        blackscreen.on('pointerdown', this.startLevel, this);
-        Hints.show([{action: "confirm", label: "START"}])
+        blackscreen.on('pointerdown', () => this.advanceIntro());
+        Hints.show([{action: "confirm", label: "SKIP"}])
 		
 		// Enemy projectiles group.
 		this.enemyProjectiles = this.physics.add.group()
 
-        // Create player.
-        if (currentLevel <= 8)
+        // Create player. Sonic (from the Shop) takes Frodo's place, but not
+        // on the horse ride.
+        this.sonic = ShopStore.isOn("sonic") && currentLevel <= 8 && currentLevel != 6
+        if (this.sonic)
+        {
+            buildSonicSprites(this)
+            this.player = new Player(this, 200, 100, "sonicSheet")
+        }
+        else if (currentLevel <= 8)
         {
             this.player = new Player(this, 200, 100, "frodo")
         }
@@ -178,6 +204,7 @@ class Level extends Phaser.Scene
         this.lifebar = this.add.sprite(10, config.height/2, "lifebar", this.player.lives)
         this.lifebar.setScrollFactor(0)
         this.lifebar.setDepth(3)
+        this.lifebar.setVisible(!this.sonic) // Sonic has rings instead.
 
         // Super charge bar and keys, top-left.
         if (this.player.canSuper()) this.player.charge = carriedCharge
@@ -218,7 +245,8 @@ class Level extends Phaser.Scene
     {
         // Coins in this stage, and the ones picked up this run.
         this.coinIds = []
-        this.coinsCollected = new Set()
+        this.coinsCollected = new Set() // Map coins picked up (they don't come back).
+        this.coinCount = 0               // Coins held now (Sonic can lose rings).
 
         // Import objects from layer.
         layer.forEach(object => 
@@ -246,6 +274,7 @@ class Level extends Phaser.Scene
                     if (object.type == "coin")
                     {
                         item.coinId = object.id
+                        if (this.sonic) item.play(ringAnimation(this)) // Coins become rings.
                         this.coinIds.push(object.id)
                     }
                     break
@@ -286,7 +315,7 @@ class Level extends Phaser.Scene
             let hints = [
                 {action: "move", label: "MOVE"},
                 {action: "jump", label: "JUMP"},
-                {action: "attack", label: "ATTACK"}
+                this.sonic ? {action: "spindash", label: "SPINDASH"} : {action: "attack", label: "ATTACK"}
             ]
             if (this.player.superReady()) hints.push({action: "super", label: "SUPER"})
             hints.push({action: "pause", label: "PAUSE", top: true})
@@ -298,7 +327,12 @@ class Level extends Phaser.Scene
     {
         if (this.briefing)
         {
-            if (GameInput.justPressed("confirm")) this.startLevel()
+            this.intro.update(this.game.loop.delta)
+            if (GameInput.justPressed("confirm")) this.advanceIntro()
+            if (this.briefing && this.intro.done && Hints.current.length && Hints.current[0].label != "START")
+            {
+                Hints.show([{action: "confirm", label: "START"}])
+            }
         }
         else if (this.player.canMove && !this.levelFinished && this.player.lives > 0 && GameInput.justPressed("pause"))
         {
@@ -345,14 +379,32 @@ class Level extends Phaser.Scene
             this.time.delayedCall(4000, done)
             return
         }
-        runCoinTally(this, this.coinsCollected.size, "COINS", 156, done)
+        runCoinTally(this, this.coinCount, this.sonic ? "RINGS" : "COINS", 156, done)
+    }
+
+    // "SONIC GOT THROUGH!": the "GOT THROUGH!" part of Frodo's banner with
+    // SONIC in big blue letters above it.
+    sonicGotThrough()
+    {
+        let banner = this.add.container(config.width / 2, -100)
+        let through = this.add.image(0, 0, "gotThrough", 0).setCrop(0, 38, 197, 16)
+        let name = "SONIC"
+        let x = -name.length * 16
+        let shadow = new NesText(this, x + 3, -20, name, "#0000a8").setScale(4)
+        let letters = new NesText(this, x, -23, name, "#3c7cfc").setScale(4)
+        banner.add([shadow, letters, through])
+        return banner
     }
 
     finishLevel()
     {
         // Level finish "got through".
         let finishSprite
-        if (currentLevel < 9)
+        if (this.sonic)
+        {
+            finishSprite = this.sonicGotThrough()
+        }
+        else if (currentLevel < 9)
         {
             finishSprite = this.add.sprite(config.width/2, -100, "gotThrough", 0)
         }

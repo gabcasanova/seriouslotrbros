@@ -88,7 +88,7 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 		// Hurt player.
         scene.physics.add.overlap(this, scene.player, function()
         {
-			if (!this.dead)
+			if (!this.dead && !scene.player.ballHit(this, 3))
 			{
 				scene.player.hurt()
 			}
@@ -97,6 +97,12 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 		this.healthBar = scene.add.sprite(this.x, this.y, "bossHealthBar", 0) // Healthbar sprite.
 	}
 	
+	// Sonic's ball or spindash: hurts under the same rules as sword hits.
+	takeBallHit(damage)
+	{
+		if (this.moving && !this.pinchMode) this.health -= damage
+	}
+
 	preUpdate(time, delta)
 	{
 		super.preUpdate(time, delta)

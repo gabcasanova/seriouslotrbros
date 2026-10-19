@@ -86,10 +86,10 @@ class Enemy extends Phaser.Physics.Arcade.Sprite
             if (!this.enemyDead && slash.hit(this)) this.enemyHealth -= slash.damage
         }, null, this)
 
-        // Hurt player.
+        // Hurt player (unless it's Sonic curled up, who hurts us instead).
         scene.physics.add.overlap(this, scene.player, function()
         {
-            if (!this.enemyDead)
+            if (!this.enemyDead && !scene.player.ballHit(this, 5))
             {
                 scene.player.hurt()
             }
@@ -97,6 +97,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite
 		
 		// Projectiles
         this.projectileCounter = 0
+    }
+
+    // Sonic's ball or spindash.
+    takeBallHit(damage)
+    {
+        this.enemyHealth -= damage
     }
 
     preUpdate(time, delta)
@@ -140,7 +146,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite
             if (this.enemyHealth <= 0)
             {
                 this.enemyDead = true
-                this.scene.sound.play("enemy")
+                this.scene.sound.play(this.scene.sonic ? "sonicKill" : "enemy")
                 this.anims.stop()
 
                 // Make sprite red.

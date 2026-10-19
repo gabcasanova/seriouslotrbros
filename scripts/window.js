@@ -285,25 +285,3 @@ class SoundToggle
         AudioSettings.toggle(this.kind)
     }
 }
-
-// Padlock: gold body, steel shackle, black outline and keyhole.
-const LOCK_ICON = [
-    "....kkkkkk....",
-    "...kggggggk...",
-    "..kggkkkkgdk..",
-    "..kgk....kdk..",
-    "..kgk....kdk..",
-    "..kgk....kdk..",
-    "kkkkkkkkkkkkkk",
-    "kwwyyyyyyyyyok",
-    "kwyyyyyyyyyyok",
-    "kyyyyykkyyyyok",
-    "kyyyykkkkyyyok",
-    "kyyyykkkkyyyok",
-    "kyyyyykkyyyyok",
-    "kyyyyykkyyyyok",
-    "kooooooooooook",
-    "kkkkkkkkkkkkkk"
-]
-
-const LOCK_PALETTE = {k: "#000000", g: "#bcbcbc", d: "#747474", y: "#f8b800", w: "#fce0a8", o: "#ac7c00"}

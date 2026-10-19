@@ -120,7 +120,9 @@ class AiPlayer extends Phaser.Physics.Arcade.Sprite
         {
             // Run faster to catch up when left behind.
             let far = Math.abs(toPlayer) > this.distance + 80
-            this.setVelocityX(Math.sign(dx) * (far ? AI_CATCH_UP_SPEED : AI_SPEED))
+            // Keep up with a fast player too (Sonic).
+            let catchUp = Math.max(AI_CATCH_UP_SPEED, Math.abs(player.body.velocity.x) + 20)
+            this.setVelocityX(Math.sign(dx) * (far ? catchUp : AI_SPEED))
             this.play("walking", true)
             this.flipX = dx < 0
         }

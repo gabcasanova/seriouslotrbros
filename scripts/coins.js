@@ -71,7 +71,7 @@ function runCoinTally(scene, amount, label, y, done)
                 total += n
                 amountLine.setText(line(label, left))
                 totalLine.setText(line("TOTAL", total))
-                scene.sound.play("coin")
+                scene.sound.play(scene.sonic ? "ring" : "coin")
                 if (left == 0)
                 {
                     event.remove()

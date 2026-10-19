@@ -70,12 +70,12 @@ const HINT_GLYPHS = {
     keyboard: {
         move: ["left", "right"], navigate: ["up", "down"], aim: ["arrows"], pan: ["A", "D"],
         jump: ["A"], attack: ["S"], confirm: ["ENTER"], skip: ["ENTER"], strike: ["S"], back: ["left"],
-        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"], super: ["D"]
+        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"], super: ["D"], spindash: ["down", "plus", "A"]
     },
     gamepad: {
         move: ["dpad"], navigate: ["dpad"], aim: ["LS"], pan: ["LB", "RB"],
         jump: ["A"], attack: ["X"], confirm: ["A"], skip: ["A"], strike: ["A"], back: ["dpad"],
-        pause: ["START"], cancel: ["B"], choose: ["dpad"], super: ["B"]
+        pause: ["START"], cancel: ["B"], choose: ["dpad"], super: ["B"], spindash: ["dpad-down", "plus", "A"]
     }
 }
 
@@ -129,6 +129,13 @@ const Hints = {
     {
         let span = document.createElement("span")
 
+        if (name == "plus")
+        {
+            span.className = "hint-plus"
+            span.textContent = "+"
+            return span
+        }
+
         if (name == "mouse")
         {
             span.className = "mouse"
@@ -141,10 +148,11 @@ const Hints = {
                 span.className = "pad-face pad-" + name
                 span.textContent = name
             }
-            else if (name == "dpad")
+            else if (name == "dpad" || name == "dpad-down")
             {
-                span.className = "pad-dpad"
-                span.innerHTML = "<i></i><i></i>"
+                // "dpad-down": the d-pad with its down arm lit up.
+                span.className = "pad-dpad" + (name == "dpad-down" ? " pad-dpad-down" : "")
+                span.innerHTML = "<i></i><i></i>" + (name == "dpad-down" ? "<b></b>" : "")
             }
             else
             {
@@ -332,14 +340,14 @@ class Briefing
 // can keep playing in the background.
 class Cutscene
 {
-    constructor(scene, src, onEnd)
+    constructor(scene, src, onEnd, framed)
     {
         this.scene = scene
         this.onEnd = onEnd
         this.finished = false
 
         let video = document.createElement("video")
-        video.className = "cutscene"
+        video.className = "cutscene" + (framed ? " framed" : "")
         video.src = src
         video.playsInline = true
         video.preload = "auto"

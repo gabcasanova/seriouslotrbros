@@ -42,6 +42,16 @@
 
 			/* Hints are pixel art: --hp is a whole number of screen pixels per
 			   game pixel, so every edge lands on a real pixel. */
+			/* A video smaller than the screen (the PEGI rating). */
+			#overlay .cutscene.framed {
+				top: 50%;
+				width: auto;
+				height: calc(var(--px) * 200);
+				max-width: calc(100% - var(--px) * 20);
+				transform: translate(-50%, -50%);
+				object-fit: contain;
+			}
+
 			#hints, #hints-top {
 				position: absolute;
 				right: calc(var(--hp) * 6 + var(--clip-right, 0px));
@@ -84,6 +94,20 @@
 			.mouse {
 				display: inline-flex;
 				color: white;
+			}
+
+			/* Down arm of the d-pad lit up, for "hold down". */
+			.pad-dpad-down b {
+				position: absolute;
+				left: calc(var(--hp) * 4);
+				width: calc(var(--hp) * 4);
+				top: calc(var(--hp) * 8);
+				height: calc(var(--hp) * 4);
+				background: #fcfcfc;
+			}
+
+			.hint-plus {
+				margin: 0 calc(var(--hp) * -1);
 			}
 
 			/* Hints that shouldn't clutter the bottom (e.g. pause). */
@@ -190,11 +214,11 @@
 				position: absolute;
 				background: #484848;
 			}
-			.pad-dpad i:first-child {
+			.pad-dpad i:first-of-type {
 				left: 0; right: 0;
 				top: calc(var(--hp) * 4); height: calc(var(--hp) * 4);
 			}
-			.pad-dpad i:last-child {
+			.pad-dpad i:last-of-type {
 				top: 0; bottom: 0;
 				left: calc(var(--hp) * 4); width: calc(var(--hp) * 4);
 				box-shadow: inset 0 calc(var(--hp) * -1) 0 #282828;
@@ -213,6 +237,7 @@
         <script src = "scripts/audio.js"></script>
         <script src = "scripts/coins.js"></script>
         <script src = "scripts/progress.js"></script>
+        <script src = "scripts/shopStore.js"></script>
         <script src = "scripts/nesFade.js"></script>
         <script src = "scripts/overlay.js"></script>
         <script src = "scripts/window.js"></script>
@@ -223,6 +248,8 @@
         <script src = "scripts/level/item.js"></script>
         <script src = "scripts/level/parallax.js"></script>
         <script src = "scripts/level/player.js"></script>
+        <script src = "scripts/level/sonicSprites.js"></script>
+        <script src = "scripts/level/sonicPlayer.js"></script>
         <script src = "scripts/level/shadows.js"></script>
         <script src = "scripts/level/hud.js"></script>
         <script src = "scripts/level/stageIntro.js"></script>
@@ -236,6 +263,7 @@
         <script src = "scenes/select.js"></script>
         <script src = "scenes/play.js"></script>
         <script src = "scenes/levelSelect.js"></script>
+        <script src = "scenes/shop.js"></script>
         <script src = "scenes/pause.js"></script>
         <script src = "scripts/shadowTuner.js"></script>
         
