@@ -278,7 +278,8 @@ class Player extends Phaser.Physics.Arcade.Sprite
         // Restart level with a fade out.
         if (this.lives <= 0) {
             if (!this.fading) {
-                this.scene.cameras.main.fadeOut(1000, 180, 32, 42)
+                // Slow death fade (lasts 1.5s, see FADE_SPEED).
+                this.scene.cameras.main.fadeOut(4500, 180, 32, 42)
                 this.scene.cameras.main.once('camerafadeoutcomplete', function (camera) {
                     this.scene.sound.stopAll()
                     this.scene.scene.restart()

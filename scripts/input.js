@@ -16,9 +16,11 @@ const BINDINGS = {
     attack:   {keys: ["KeyS"], buttons: [PAD.X, PAD.B]},
     confirm:  {keys: ["Enter", "Space", "KeyA"], buttons: [PAD.A, PAD.START]},
     skip:     {keys: ["Enter", "Space", "Escape", "KeyA", "KeyS"], buttons: [PAD.A, PAD.B, PAD.START]},
-    strike:   {keys: ["KeyS", "Space", "Enter"], buttons: [PAD.A, PAD.X]},
+    strike:   {keys: ["KeyS", "Space"], buttons: [PAD.A, PAD.X]},
     panLeft:  {keys: ["KeyA"], buttons: [PAD.LB]},
-    panRight: {keys: ["KeyD"], buttons: [PAD.RB]}
+    panRight: {keys: ["KeyD"], buttons: [PAD.RB]},
+    pause:    {keys: ["Escape", "KeyP", "Enter"], buttons: [PAD.START]},
+    cancel:   {keys: ["Escape", "Backspace"], buttons: [PAD.B]}
 }
 
 // Every key the game uses, so the browser doesn't scroll or click with them.
@@ -107,6 +109,11 @@ const GameInput = {
     onModeChange(fn)
     {
         this.listeners.push(fn)
+    },
+
+    offModeChange(fn)
+    {
+        this.listeners = this.listeners.filter(l => l != fn)
     },
 
     isDown(action)

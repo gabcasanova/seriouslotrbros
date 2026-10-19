@@ -96,7 +96,6 @@ class Level extends Phaser.Scene
 
             cutsceneLevel.destroy()
             blackscreen.destroy()
-            this.player.canMove = true
             this.player.waitJumpRelease = true
             this.sound.stopAll()
             let levelMusic = this.sound.add("levelMusic", {loop: true}).play()
@@ -107,7 +106,14 @@ class Level extends Phaser.Scene
                 this.caradhrasSnowSmall.visible = true
             }
 
-            this.showPlayHints()
+            // Fade into the stage; the player can move once it's done.
+            Hints.hide()
+            this.cameras.main.fadeEffect.start(false, 1800, 0, 0, 0, true)
+            this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () =>
+            {
+                this.player.canMove = true
+                this.showPlayHints()
+            })
         }
 
         cutsceneLevel.on('pointerdown', this.startLevel, this);
@@ -249,7 +255,8 @@ class Level extends Phaser.Scene
             // Horse level: Legolas rides on his own.
             Hints.show([
                 {action: "back", label: "BRAKE"},
-                {action: "jump", label: "JUMP"}
+                {action: "jump", label: "JUMP"},
+                {action: "pause", label: "PAUSE", top: true}
             ])
         }
         else
@@ -257,16 +264,22 @@ class Level extends Phaser.Scene
             Hints.show([
                 {action: "move", label: "MOVE"},
                 {action: "jump", label: "JUMP"},
-                {action: "attack", label: "ATTACK"}
+                {action: "attack", label: "ATTACK"},
+                {action: "pause", label: "PAUSE", top: true}
             ])
         }
     }
 
     update()
     {
-        if (this.briefing && GameInput.justPressed("confirm"))
+        if (this.briefing)
         {
-            this.startLevel()
+            if (GameInput.justPressed("confirm")) this.startLevel()
+        }
+        else if (this.player.canMove && !this.levelFinished && this.player.lives > 0 && GameInput.justPressed("pause"))
+        {
+            Pause.open(this)
+            return
         }
 
         // No controls to show once the level is over or the player died.

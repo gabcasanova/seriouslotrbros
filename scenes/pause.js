@@ -1,0 +1,136 @@
+// Pause menu, launched on top of a paused Level or Balrog scene.
+class Pause extends Phaser.Scene
+{
+    constructor()
+    {
+        super({key: "Pause"})
+    }
+
+    // Pause the given scene and show this one over it.
+    static open(scene)
+    {
+        scene.sound.pauseAll()
+        scene.scene.launch("Pause", {target: scene.scene.key, hints: Hints.current})
+        scene.scene.pause()
+    }
+
+    init(data)
+    {
+        this.target = data.target
+        this.previousHints = data.hints
+    }
+
+    create()
+    {
+        this.leaving = false
+
+        let w = 112
+        let h = 64
+        let x = Math.round((config.width - w) / 2)
+        let y = Math.round((config.height - h) / 2)
+
+        drawWindow(this.add.graphics(), x, y, w, h)
+        addNesText(this, config.width / 2, y + 8, "PAUSE", "#ffffff", true)
+
+        this.options = [
+            {label: "RESUME",    action: () => this.resume()},
+            {label: "RESTART",   action: () => this.restart()},
+            {label: "MAIN MENU", action: () => this.toMenu()}
+        ]
+        this.options.forEach((option, i) =>
+        {
+            option.text = addNesText(this, x + 22, y + 24 + i * 12, option.label)
+                .setInteractive({cursor: 'pointer'})
+            option.text.on('pointerover', () => this.select(i))
+            option.text.on('pointerdown', () => { this.select(i); this.choose() })
+        })
+
+        // Cursor: a small pixel triangle pointing at the selected option.
+        this.cursor = this.add.graphics()
+        this.cursor.fillStyle(0xffffff, 1)
+        for (let i = 0; i < 4; i++)
+        {
+            this.cursor.fillRect(i, i, 1, 7 - 2 * i)
+        }
+        this.cursorX = x + 12
+
+        this.select(0)
+
+        Hints.show([
+            {action: "navigate", label: "SELECT"},
+            {action: "confirm", label: "OK"},
+            {action: "cancel", label: "RESUME"}
+        ])
+    }
+
+    select(index)
+    {
+        this.selected = index
+        this.options.forEach((option, i) => option.text.setColor(i == index ? "#ffffff" : "#a0a0a0"))
+        this.cursor.setPosition(this.cursorX, this.options[index].text.y)
+    }
+
+    choose()
+    {
+        if (this.leaving) return
+        this.options[this.selected].action()
+    }
+
+    resume()
+    {
+        Hints.show(this.previousHints)
+        this.sound.resumeAll()
+        this.scene.resume(this.target)
+        this.scene.stop()
+    }
+
+    // Fade the whole screen out, then run done.
+    leave(done)
+    {
+        this.leaving = true
+        Hints.hide()
+        this.cameras.main.fadeOut(1500)
+        this.cameras.main.once('camerafadeoutcomplete', () =>
+        {
+            this.sound.stopAll()
+            this.sound.setVolume(1)
+            done()
+        })
+    }
+
+    restart()
+    {
+        this.leave(() =>
+        {
+            this.scene.get(this.target).scene.restart()
+            this.scene.stop()
+        })
+    }
+
+    toMenu()
+    {
+        this.leave(() =>
+        {
+            this.scene.stop(this.target)
+            this.scene.start("Menu", {skipIntro: true})
+        })
+    }
+
+    update()
+    {
+        if (this.leaving) return
+
+        let count = this.options.length
+        if (GameInput.justPressed("down")) this.select((this.selected + 1) % count)
+        if (GameInput.justPressed("up"))   this.select((this.selected + count - 1) % count)
+
+        if (GameInput.justPressed("confirm"))
+        {
+            this.choose()
+        }
+        else if (GameInput.justPressed("pause") || GameInput.justPressed("cancel"))
+        {
+            this.resume()
+        }
+    }
+}

@@ -18,6 +18,10 @@ const Overlay = {
         this.hints.id = "hints"
         this.root.appendChild(this.hints)
 
+        this.hintsTop = document.createElement("div")
+        this.hintsTop.id = "hints-top"
+        this.root.appendChild(this.hintsTop)
+
         game.events.on(Phaser.Core.Events.POST_RENDER, () => this.fit())
         window.addEventListener("resize", () => this.fit())
         this.fit()
@@ -53,11 +57,13 @@ const Overlay = {
 const HINT_GLYPHS = {
     keyboard: {
         move: ["left", "right"], navigate: ["up", "down"], aim: ["arrows"], pan: ["A", "D"],
-        jump: ["A"], attack: ["S"], confirm: ["ENTER"], skip: ["ENTER"], strike: ["S"], back: ["left"]
+        jump: ["A"], attack: ["S"], confirm: ["ENTER"], skip: ["ENTER"], strike: ["S"], back: ["left"],
+        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"]
     },
     gamepad: {
         move: ["dpad"], navigate: ["dpad"], aim: ["LS"], pan: ["LB", "RB"],
-        jump: ["A"], attack: ["X"], confirm: ["A"], skip: ["A"], strike: ["A"], back: ["dpad"]
+        jump: ["A"], attack: ["X"], confirm: ["A"], skip: ["A"], strike: ["A"], back: ["dpad"],
+        pause: ["START"], cancel: ["B"], choose: ["dpad"]
     }
 }
 
@@ -65,6 +71,7 @@ const Hints = {
     current: [],
 
     // list: [{action: "jump", label: "JUMP"}, ...]. Empty hides the hints.
+    // Entries with top: true go in the top-right corner instead.
     show(list)
     {
         this.current = list || []
@@ -78,12 +85,16 @@ const Hints = {
 
     render()
     {
-        let el = Overlay.hints
-        if (!el) return
+        if (!Overlay.hints) return
+        this.fill(Overlay.hints, this.current.filter(h => !h.top))
+        this.fill(Overlay.hintsTop, this.current.filter(h => h.top))
+    },
 
+    fill(el, list)
+    {
         let glyphs = HINT_GLYPHS[GameInput.mode]
         el.innerHTML = ""
-        for (let hint of this.current)
+        for (let hint of list)
         {
             let row = document.createElement("div")
             row.className = "hint"
@@ -106,7 +117,12 @@ const Hints = {
     {
         let span = document.createElement("span")
 
-        if (GameInput.mode == "gamepad")
+        if (name == "mouse")
+        {
+            span.className = "mouse"
+            span.appendChild(this.pixelIcon(MOUSE_ICON))
+        }
+        else if (GameInput.mode == "gamepad")
         {
             if (["A", "B", "X", "Y"].includes(name))
             {
@@ -144,6 +160,25 @@ const Hints = {
         return span
     },
 
+    // SVG from rows of pixels: "#" uses the text color, "r" red.
+    pixelIcon(rows)
+    {
+        let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+        let w = rows[0].length
+        svg.setAttribute("viewBox", "0 0 " + w + " " + rows.length)
+        svg.setAttribute("shape-rendering", "crispEdges")
+        svg.style.width = "calc(var(--hp) * " + w + ")"
+        svg.style.height = "calc(var(--hp) * " + rows.length + ")"
+        let html = ""
+        rows.forEach((row, y) => [...row].forEach((p, x) =>
+        {
+            if (p == "#") html += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="currentColor"/>'
+            if (p == "r") html += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#d82800"/>'
+        }))
+        svg.innerHTML = html
+        return svg
+    },
+
     // Pixel-art arrow, since the NES font has no arrow characters.
     arrow(dir)
     {
@@ -159,7 +194,126 @@ const Hints = {
 
 const ARROW_ROTATION = {up: 0, right: 90, down: 180, left: 270}
 
+// Mouse with the left button pressed ("#" white, "r" red).
+const MOUSE_ICON = [
+    ".##.##.",
+    "#rr#..#",
+    "#rr#..#",
+    "#######",
+    "#.....#",
+    "#.....#",
+    "#.....#",
+    "#.....#",
+    ".#...#.",
+    "..###.."
+]
+
 GameInput.onModeChange(() => Hints.render())
+
+// A card of text pages in the HTML layer, for crisp text with control icons
+// inline. Each page is a function of the input mode returning paragraphs:
+// [{color: "#fff", text: "Press {A} to jump"}], where {name} is a glyph.
+// Clicking or confirming goes to the next page; onDone runs after the last.
+class Briefing
+{
+    constructor(scene, pages, hintLabels, onDone)
+    {
+        this.scene = scene
+        this.pages = pages
+        this.hintLabels = hintLabels
+        this.onDone = onDone
+        this.index = 0
+
+        // Same 8-bit window as the pause menu, drawn in the game itself.
+        let w = 256
+        let h = 160
+        this.window = drawWindow(scene.add.graphics(), Math.round((config.width - w) / 2), Math.round((config.height - h) / 2), w, h)
+            .setScrollFactor(0, 0)
+            .setDepth(10)
+
+        this.page = document.createElement("div")
+        this.page.className = "briefing-page"
+        Overlay.root.insertBefore(this.page, Overlay.hints)
+
+        this.rerender = () => this.render()
+        GameInput.onModeChange(this.rerender)
+        window.addEventListener("resize", this.rerender)
+        scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy())
+
+        this.render()
+    }
+
+    next()
+    {
+        if (!this.page) return
+        this.index++
+        if (this.index < this.pages.length)
+        {
+            this.render()
+        }
+        else
+        {
+            this.destroy()
+            this.onDone()
+        }
+    }
+
+    render()
+    {
+        if (!this.page) return
+
+        this.page.innerHTML = ""
+        for (let paragraph of this.pages[this.index](GameInput.mode))
+        {
+            let p = document.createElement("p")
+            p.style.color = paragraph.color
+            if (paragraph.text.includes("{")) p.className = "has-glyph"
+            paragraph.text.split(/(\{[^}]+\})/).forEach(part =>
+            {
+                if (part.startsWith("{"))
+                {
+                    p.appendChild(Hints.glyph(part.slice(1, -1)))
+                }
+                else if (part)
+                {
+                    p.appendChild(document.createTextNode(part))
+                }
+            })
+            this.page.appendChild(p)
+        }
+
+        let last = this.index == this.pages.length - 1
+        Hints.show([{action: "confirm", label: last ? this.hintLabels[1] : this.hintLabels[0]}])
+
+        this.layout()
+    }
+
+    // Place everything on whole screen pixels so the font stays sharp.
+    layout()
+    {
+        let r = Overlay.root.getBoundingClientRect()
+        let px = r.height / config.height
+        let hp = Math.max(1, Math.floor(px))
+        let cx = Math.round(r.width / 2)
+        let cy = Math.round(r.height / 2)
+
+        this.page.style.width = (240 * hp) + "px"
+        this.page.style.left = (cx - 120 * hp) + "px"
+        this.page.style.top = (cy - Math.round(this.page.offsetHeight / 2 / hp) * hp) + "px"
+    }
+
+    destroy()
+    {
+        GameInput.offModeChange(this.rerender)
+        window.removeEventListener("resize", this.rerender)
+        if (this.page)
+        {
+            this.window.destroy()
+            this.page.remove()
+            this.page = null
+        }
+    }
+}
 
 // Plays a cutscene video in the HTML layer at full resolution.
 // The element is owned by the scene and torn down with it, so nothing

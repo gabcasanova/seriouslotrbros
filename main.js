@@ -36,7 +36,7 @@ var config = {
         }*/
     },
 
-    scene: [Play, Menu, Level, Select, Balrog, Credits]
+    scene: [Play, Menu, Level, Select, Balrog, Credits, LevelSelect, Pause]
     //scene: [Select, Play, Menu, Level, Balrog, Credits]
 }
 
@@ -134,6 +134,9 @@ var levels = [
 ]
 
 var currentLevel = 0
+
+// The NES font (index.html) is used by in-game text too; start loading it now.
+document.fonts.load("8px NES")
 
 var game = new Phaser.Game(config)
 GameInput.init(game)

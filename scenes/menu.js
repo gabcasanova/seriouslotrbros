@@ -16,10 +16,20 @@ class Menu extends Phaser.Scene
         this.load.audio("menu", "assets/music/khazadDum.mp3")
     }
 
-    create()
+    create(data)
     {
 		this.menuPlaying = false
 		this.cutscenePlaying = true
+		this.cutscene = null
+
+		// Coming back from the level select: straight to the title.
+		if (data && data.skipIntro)
+		{
+			this.cutscenePlaying = false
+			this.menuPlaying = true
+			this.createTitle()
+			return
+		}
 
 		// Intro plays in the HTML layer at full resolution.
 		this.cutscene = new Cutscene(this, "assets/cutscenes/intro.mp4", () => this.endCutscene()).play()
@@ -46,7 +56,7 @@ class Menu extends Phaser.Scene
 		this.cutscenePlaying = false
 		this.menuPlaying = true
 
-		this.cutscene.destroy()
+		if (this.cutscene) this.cutscene.destroy()
 		this.input.setDefaultCursor('default')
 		this.createTitle()
 	}
@@ -64,31 +74,32 @@ class Menu extends Phaser.Scene
         let menuMusic = this.sound.add("menu", {loop: true})
         menuMusic.play()
 
+        // Scrolling layers (mountains, then clouds on top).
         this.backgrounds = [
-            this.add.tileSprite(0, 0, 0, 0, "hobbitonMountains"),
-            this.add.tileSprite(0, 0, 0, 0, "hobbitonClouds")
+            this.makeStrip("hobbitonMountains", 1),
+            this.makeStrip("hobbitonClouds", 2)
         ]
 
-        this.backgrounds[0].setOrigin(0, 0)
-        this.backgrounds[0].setScrollFactor(0)
+        this.logo = this.add.image(config.width/2, 92, "logo")
 
-        this.backgrounds[1].setOrigin(0, 0)
-        this.backgrounds[1].setScrollFactor(0)
-
-        this.logo = this.add.image(config.width/2, 100, "logo")
-
-        this.playButton = new Button(this, config.width/2, 180, 0, function playAction(scene)
+        this.playButton = new Button(this, config.width/2, 164, 0, function playAction(scene)
         {
+            currentLevel = 0
             scene.leaveTo("Level")
         })
 
-        this.creditsButton = new Button(this, config.width/2, 207, 4, function creditsAction(scene)
+        this.levelsButton = new Button(this, config.width/2, 190, 6, function levelsAction(scene)
+        {
+            scene.leaveTo("LevelSelect")
+        })
+
+        this.creditsButton = new Button(this, config.width/2, 216, 4, function creditsAction(scene)
         {
             scene.leaveTo("Credits")
         })
 
         // Keyboard / gamepad selection. The mouse hovering a button selects it too.
-        this.buttons = [this.playButton, this.creditsButton]
+        this.buttons = [this.playButton, this.levelsButton, this.creditsButton]
         this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
         this.select(0)
 
@@ -96,6 +107,26 @@ class Menu extends Phaser.Scene
             {action: "navigate", label: "SELECT"},
             {action: "confirm", label: "OK"}
         ])
+    }
+
+    // A layer that scrolls left forever, made of plain images side by side.
+    // (TileSprite resamples its texture smoothly, which blurs pixel art.)
+    makeStrip(key, speed)
+    {
+        let width = this.textures.get(key).getSourceImage().width
+        let count = Math.ceil(config.width / width) + 1
+        let images = []
+        for (let i = 0; i < count; i++)
+        {
+            images.push(this.add.image(i * width, 0, key).setOrigin(0, 0).setScrollFactor(0))
+        }
+        return {images: images, width: width, speed: speed, offset: 0}
+    }
+
+    scrollStrip(strip)
+    {
+        strip.offset = (strip.offset + strip.speed) % strip.width
+        strip.images.forEach((image, i) => image.x = i * strip.width - strip.offset)
     }
 
     select(index)
@@ -123,8 +154,7 @@ class Menu extends Phaser.Scene
 
         if (this.menuPlaying)
         {
-            this.backgrounds[1].tilePositionX += 2
-            this.backgrounds[0].tilePositionX += 1
+            this.backgrounds.forEach(strip => this.scrollStrip(strip))
 
             if (!this.fadeStarted && this.time.now >= this.acceptInputAt)
             {

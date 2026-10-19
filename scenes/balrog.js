@@ -1,3 +1,26 @@
+const BALROG_BLUE = "#5182ff"
+const BALROG_RED = "#db4161"
+
+const BALROG_BRIEFING = [
+    // The story.
+    () => [
+        {color: BALROG_BLUE, text: "Gandalf, the Balrog is Against you! Deflect it's lava projectiles with your magic staff!"},
+        {color: "#ffffff", text: "By DEFLECTING a certain amount of Lava projectiles, you will enter a new phase. As the stage progresses, the game will get HARDER and HARDER..."},
+        {color: "#ffffff", text: "If you don't deflect the lava projectile, you will lose a life. If you lose all five you get backtracked to the previous phase, so GOOD LUCK!"}
+    ],
+
+    // The controls, for the device in use.
+    (mode) => (mode == "gamepad") ? [
+        {color: BALROG_RED, text: "Use {LB} {RB} to look LEFT and RIGHT."},
+        {color: BALROG_RED, text: "Aim the staff with {LS} and press {A} to DEFLECT the projectiles."},
+        {color: BALROG_RED, text: "Pushing {LS} to the edge of the screen looks around too."}
+    ] : [
+        {color: BALROG_RED, text: "Use {A} {D} to look LEFT and RIGHT."},
+        {color: BALROG_RED, text: "Aim the staff with {arrows} and press {S} to DEFLECT the projectiles."},
+        {color: BALROG_RED, text: "Or use the mouse {mouse}: MOVE it to aim and CLICK to deflect."}
+    ]
+]
+
 class Balrog extends Phaser.Scene
 {
     constructor()
@@ -21,7 +44,6 @@ class Balrog extends Phaser.Scene
         // Sprites.
         this.load.image("moriaStaff", "assets/sprites/moriaStaff.png")
         this.load.image("balrog", "assets/sprites/balrog.png")
-        this.load.image("finalBriefing", "assets/cutscenes/finalbriefing.png")
         this.load.spritesheet("bossHealthBar", "assets/sprites/bossHealthBar.png", {frameWidth: 42, frameHeight: 9})
         this.load.spritesheet("balrogProjectiles", "assets/sprites/balrogProjectiles.png", {frameWidth: 21, frameHeight: 21})
     }
@@ -37,37 +59,35 @@ class Balrog extends Phaser.Scene
         this.healthValue = 5
         this.phaseLevel = 1
         this.collectedFlames = 0
-        this.add.text(10, 10, "HEALTH: ", {font: "10px Arial"})
+        addNesText(this, 10, 10, "HEALTH:", "#ffffff", false, true)
             .setScrollFactor(0, 0)
             .setDepth(1)
-        this.healthBar = this.add.sprite(55, 12, "bossHealthBar", this.healthValue)
+        this.healthBar = this.add.sprite(70, 10, "bossHealthBar", this.healthValue)
             .setScrollFactor(0, 0)
             .setOrigin(0, 0)
             .setDepth(1)
-        this.phaseText = this.add.text(256 - 60, 10, "PHASE: " + this.phaseLevel, {font: "10px Arial"})
+        this.phaseText = addNesText(this, 256 - 60, 10, "PHASE: " + this.phaseLevel, "#ffffff", false, true)
             .setScrollFactor(0, 0)
             .setDepth(1)
 
-        let briefing = this.add.sprite(config.width/2, config.height/2, "finalBriefing")
-            .setScrollFactor(0, 0)
-            .setDepth(2)
-            .setInteractive({cursor: 'pointer'})
+        // Briefing: the story first, then the controls for whatever is
+        // being used right now. Click, key or button turns the page.
+        this.briefing = new Briefing(this, BALROG_BRIEFING, ["NEXT", "START"], () => this.startFight())
+        this.input.on('pointerdown', () => { if (!this.started) this.briefing.next() })
 
-        // Click, key or button starts the fight.
         this.startFight = () =>
         {
             if (this.started || this.fading) return
             this.started = true
-            briefing.destroy()
+            this.briefing.destroy()
 
             Hints.show([
                 {action: "aim", label: "AIM"},
                 {action: "strike", label: "STRIKE"},
-                {action: "pan", label: "LOOK"}
+                {action: "pan", label: "LOOK"},
+                {action: "pause", label: "PAUSE", top: true}
             ])
         }
-        briefing.on('pointerdown', this.startFight, this)
-        Hints.show([{action: "confirm", label: "START"}])
 
         // Player. Aim with the mouse, or with arrows / the left stick.
         this.keys = {
@@ -189,9 +209,14 @@ class Balrog extends Phaser.Scene
 
     update(time, delta)
     {
-        if (!this.started && GameInput.justPressed("confirm"))
+        if (!this.started)
         {
-            this.startFight()
+            if (GameInput.justPressed("confirm")) this.briefing.next()
+        }
+        else if (!this.fading && GameInput.justPressed("pause"))
+        {
+            Pause.open(this)
+            return
         }
 
         if (this.started)
@@ -241,15 +266,10 @@ class Balrog extends Phaser.Scene
                 }
             }
 
-            // Move Staff.
-            if (this.aim.y >= 117)
-            {
-                this.moriaStaff.y = this.aim.y
-            }
-            else
-            {
-                this.moriaStaff.y = 117
-            }
+            // Move Staff. The hands image is screen-sized and centered, so
+            // it can't go higher than this or the bottom of the arms shows.
+            let staffMinY = config.height - this.moriaStaff.height / 2
+            this.moriaStaff.y = Math.max(this.aim.y, staffMinY)
             this.moriaStaff.x = this.aim.x
 
             this.reticle.setPosition(this.aim.x, this.aim.y)

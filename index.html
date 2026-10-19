@@ -42,7 +42,7 @@
 
 			/* Hints are pixel art: --hp is a whole number of screen pixels per
 			   game pixel, so every edge lands on a real pixel. */
-			#hints {
+			#hints, #hints-top {
 				position: absolute;
 				right: calc(var(--hp) * 6 + var(--clip-right, 0px));
 				bottom: calc(var(--hp) * 5 + var(--clip-bottom, 0px));
@@ -56,6 +56,40 @@
 					drop-shadow(calc(var(--hp) * -1) 0 0 black)
 					drop-shadow(0 var(--hp) 0 black)
 					drop-shadow(0 calc(var(--hp) * -1) 0 black);
+			}
+
+			/* Text card (boss briefing). Positioned from JS on whole pixels. */
+			.briefing-page {
+				position: absolute;
+				font: calc(var(--hp) * 8) / calc(var(--hp) * 9) "NES", monospace;
+				text-align: center;
+				/* The NES font's lowercase letters are unreadable. */
+				text-transform: uppercase;
+			}
+			.briefing-page p {
+				margin: 0 0 calc(var(--hp) * 9);
+			}
+			.briefing-page p:last-child {
+				margin-bottom: 0;
+			}
+			/* Lines with control icons need room for them. */
+			.briefing-page p.has-glyph {
+				line-height: calc(var(--hp) * 14);
+			}
+			.briefing-page .key, .briefing-page .pad-face, .briefing-page .pad-pill,
+			.briefing-page .pad-dpad, .briefing-page .mouse {
+				vertical-align: middle;
+				margin: 0 var(--hp);
+			}
+			.mouse {
+				display: inline-flex;
+				color: white;
+			}
+
+			/* Hints that shouldn't clutter the bottom (e.g. pause). */
+			#hints-top {
+				bottom: auto;
+				top: calc(var(--hp) * 5);
 			}
 
 			.hint {
@@ -178,6 +212,7 @@
         <script src = "scripts/input.js"></script>
         <script src = "scripts/nesFade.js"></script>
         <script src = "scripts/overlay.js"></script>
+        <script src = "scripts/window.js"></script>
 		<script src = "scripts/level/bosses/blackrider.js"></script>
         <script src = "scripts/level/aiPlayer.js"></script>
         <script src = "scripts/level/playerProjectile.js"></script>
@@ -194,6 +229,8 @@
         <script src = "scenes/menu.js"></script>
         <script src = "scenes/select.js"></script>
         <script src = "scenes/play.js"></script>
+        <script src = "scenes/levelSelect.js"></script>
+        <script src = "scenes/pause.js"></script>
         
         <script src = "main.js"></script>
     </head>
