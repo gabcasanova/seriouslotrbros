@@ -1,4 +1,4 @@
-class Menu extends Phaser.Scene 
+class Menu extends Phaser.Scene
 {
     constructor()
     {
@@ -14,53 +14,52 @@ class Menu extends Phaser.Scene
         this.load.spritesheet("buttons", "assets/sprites/buttons.png", {frameWidth: 76, frameHeight: 24})
 
         this.load.audio("menu", "assets/music/khazadDum.mp3")
-		this.load.video("intro", "assets/cutscenes/intro.mp4", 'loadeddata', false, false)
-
     }
 
     create()
     {
-		this.cutsceneVideo = this.add.video(config.width/2, config.height/2, 'intro')
-		this.cutsceneVideo.displayWidth = 256+64
-		this.cutsceneVideo.displayHeight = config.height
-		this.cutsceneVideo.play(false)
-		this.cutsceneVideo.setPaused(false);
-		let cutscenePlaying = true
 		this.menuPlaying = false
-		
-		this.cutsceneVideo.setInteractive({cursor: 'pointer'});
+		this.cutscenePlaying = true
 
-        this.cutsceneVideo.on('pointerdown', function (event) 
-        {
-			if (cutscenePlaying)
-			{
-				this.cameras.main.fadeOut(2000)
-				cutscenePlaying = false
-				
-				// Fade out music.
-                this.tweens.add
-                ({
-                    targets:  this.cutsceneVideo,
-                    volume:   0,
-                    duration: 1000
-                });
-				
-				// Once the screen fade out is over, destroy the sprite and music.
-                this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, (cam, effect) => 
-                {
-					this.cutsceneVideo.destroy()
-                    this.createTitle()
-					this.menuPlaying = true
-                })
-			}
-        }, this);
+		// Intro plays in the HTML layer at full resolution.
+		this.cutscene = new Cutscene(this, "assets/cutscenes/intro.mp4", () => this.endCutscene()).play()
+		this.input.setDefaultCursor('pointer')
+		this.input.on('pointerdown', () => this.skipCutscene())
+
+		Hints.show([{action: "skip", label: "SKIP"}])
     }
+
+	// Fade out the intro early.
+	skipCutscene()
+	{
+		if (!this.cutscenePlaying) return
+		this.cutscenePlaying = false
+		Hints.hide()
+
+		this.cutscene.fadeOut(2000, () => this.endCutscene())
+	}
+
+	// Runs once, whether the intro ended by itself or was skipped.
+	endCutscene()
+	{
+		if (this.menuPlaying) return
+		this.cutscenePlaying = false
+		this.menuPlaying = true
+
+		this.cutscene.destroy()
+		this.input.setDefaultCursor('default')
+		this.createTitle()
+	}
 
     createTitle()
     {
         this.cameras.main.fadeIn(2000)
 
         this.fadeStarted = false
+
+        // Ignore input for a moment, so a press meant to skip the intro
+        // doesn't also pick a menu option.
+        this.acceptInputAt = this.time.now + 500
 
         let menuMusic = this.sound.add("menu", {loop: true})
         menuMusic.play()
@@ -78,49 +77,62 @@ class Menu extends Phaser.Scene
 
         this.logo = this.add.image(config.width/2, 100, "logo")
 
-        this.playButton = new Button(this, config.width/2, 180, 0, function playAction(scene) 
+        this.playButton = new Button(this, config.width/2, 180, 0, function playAction(scene)
         {
-            if (!scene.fadeStarted)
-            {
-                scene.fadeStarted = true
-                scene.sound.stopAll()
-                scene.cameras.main.fadeOut(2000)
-                scene.cameras.main.once('camerafadeoutcomplete', function (camera) {
-                    scene.scene.start("Level");
-                });
-            }
+            scene.leaveTo("Level")
         })
-        
+
         this.creditsButton = new Button(this, config.width/2, 207, 4, function creditsAction(scene)
         {
-            if (!scene.fadeStarted)
-            {
-                scene.fadeStarted = true
-                scene.sound.stopAll()
-                scene.cameras.main.fadeOut(2000)
-                scene.cameras.main.once('camerafadeoutcomplete', function (camera) {
-                    scene.scene.start("Credits");
-                });
-            }
+            scene.leaveTo("Credits")
         })
+
+        // Keyboard / gamepad selection. The mouse hovering a button selects it too.
+        this.buttons = [this.playButton, this.creditsButton]
+        this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
+        this.select(0)
+
+        Hints.show([
+            {action: "navigate", label: "SELECT"},
+            {action: "confirm", label: "OK"}
+        ])
+    }
+
+    select(index)
+    {
+        this.selected = index
+        this.buttons.forEach((b, i) => b.setSelected(i == index))
+    }
+
+    leaveTo(sceneKey)
+    {
+        if (this.fadeStarted) return
+        this.fadeStarted = true
+        Hints.hide()
+        this.sound.stopAll()
+        this.cameras.main.fadeOut(2000)
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(sceneKey))
     }
 
     update(time, delta)
     {
-		if (!this.cutsceneVideo.isPlaying())
+		if (this.cutscenePlaying && GameInput.justPressed("skip"))
 		{
-			if(!this.menuPlaying)
-			{
-				this.cutsceneVideo.destroy()
-				this.createTitle()
-				this.menuPlaying = true
-			}
+			this.skipCutscene()
 		}
-		
-        if (this.menuPlaying) 
+
+        if (this.menuPlaying)
         {
             this.backgrounds[1].tilePositionX += 2
             this.backgrounds[0].tilePositionX += 1
+
+            if (!this.fadeStarted && this.time.now >= this.acceptInputAt)
+            {
+                let count = this.buttons.length
+                if (GameInput.justPressed("down")) this.select((this.selected + 1) % count)
+                if (GameInput.justPressed("up"))   this.select((this.selected + count - 1) % count)
+                if (GameInput.justPressed("confirm")) this.buttons[this.selected].press()
+            }
         }
     }
 }

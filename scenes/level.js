@@ -87,11 +87,17 @@ class Level extends Phaser.Scene
         cutsceneLevel.setScrollFactor(0, 0)
         cutsceneLevel.setInteractive({cursor: 'pointer'})
 
-        cutsceneLevel.on('pointerdown', function (event) 
+        // Titlecard: click, key or button starts the level.
+        this.briefing = true
+        this.startLevel = () =>
         {
+            if (!this.briefing) return
+            this.briefing = false
+
             cutsceneLevel.destroy()
             blackscreen.destroy()
             this.player.canMove = true
+            this.player.waitJumpRelease = true
             this.sound.stopAll()
             let levelMusic = this.sound.add("levelMusic", {loop: true}).play()
 
@@ -100,7 +106,12 @@ class Level extends Phaser.Scene
                 this.caradhrasSnow.visible = true
                 this.caradhrasSnowSmall.visible = true
             }
-        }, this);
+
+            this.showPlayHints()
+        }
+
+        cutsceneLevel.on('pointerdown', this.startLevel, this);
+        Hints.show([{action: "confirm", label: "START"}])
 		
 		// Enemy projectiles group.
 		this.enemyProjectiles = this.physics.add.group()
@@ -231,8 +242,39 @@ class Level extends Phaser.Scene
         })
     }
 
+    showPlayHints()
+    {
+        if (currentLevel == 6)
+        {
+            // Horse level: Legolas rides on his own.
+            Hints.show([
+                {action: "back", label: "BRAKE"},
+                {action: "jump", label: "JUMP"}
+            ])
+        }
+        else
+        {
+            Hints.show([
+                {action: "move", label: "MOVE"},
+                {action: "jump", label: "JUMP"},
+                {action: "attack", label: "ATTACK"}
+            ])
+        }
+    }
+
     update()
     {
+        if (this.briefing && GameInput.justPressed("confirm"))
+        {
+            this.startLevel()
+        }
+
+        // No controls to show once the level is over or the player died.
+        if (!this.briefing && Hints.current.length && (this.levelFinished || this.player.lives <= 0))
+        {
+            Hints.hide()
+        }
+
         // Update lifebar.
         this.lifebar.setFrame(this.player.lives)
 

@@ -136,3 +136,5 @@ var levels = [
 var currentLevel = 0
 
 var game = new Phaser.Game(config)
+GameInput.init(game)
+game.events.once(Phaser.Core.Events.BOOT, () => Overlay.init(game))

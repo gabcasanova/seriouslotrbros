@@ -80,9 +80,17 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		this.setMaxVelocity(500, 500)
         scene.cameras.main.startFollow(this, true, 0.2, 1)
 
-        this.aKey    = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
-        this.sKey    = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S)
-        this.cursors = scene.input.keyboard.createCursorKeys()
+        // Set when the level starts, so the button that skipped the
+        // titlecard doesn't also make the player jump.
+        this.waitJumpRelease = false
+
+        // Keyboard or gamepad, whichever was used last.
+        this.controls = {
+            left:   {get isDown() { return GameInput.isDown("left") }},
+            right:  {get isDown() { return GameInput.isDown("right") }},
+            jump:   {get isDown() { return GameInput.isDown("jump") }},
+            attack: {get isDown() { return GameInput.isDown("attack") }}
+        }
 
         // Hurt Timer.
         this.timer = {}
@@ -139,16 +147,21 @@ class Player extends Phaser.Physics.Arcade.Sprite
     {
         super.preUpdate(time, delta)
 
+        if (this.waitJumpRelease && !this.controls.jump.isDown)
+        {
+            this.waitJumpRelease = false
+        }
+
         if (this.canMove)
         {
 			if (currentLevel != 6)
 			{
 				// ### NORMAL WALKING. ###
-				if (this.cursors.left.isDown)
+				if (this.controls.left.isDown)
 				{
 					this.setVelocityX(-130)
 
-					if (this.sKey.isDown)
+					if (this.controls.attack.isDown)
 					{
 						this.play("walkingAttacking", true)
 					}
@@ -159,10 +172,10 @@ class Player extends Phaser.Physics.Arcade.Sprite
 					
 					this.flipX = true
 				}
-				else if (this.cursors.right.isDown)
+				else if (this.controls.right.isDown)
 				{
 					this.setVelocityX(130)
-					if (this.sKey.isDown)
+					if (this.controls.attack.isDown)
 					{
 						this.play("walkingAttacking", true)
 					}
@@ -176,7 +189,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				{
 					this.setVelocityX(0)
 
-					if (this.sKey.isDown)
+					if (this.controls.attack.isDown)
 					{
 						this.play("attacking", true)
 					}
@@ -186,7 +199,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 					}
 				}
 				
-				if (this.aKey.isDown && this.body.onFloor())
+				if (this.controls.jump.isDown && !this.waitJumpRelease && this.body.onFloor())
 				{
 					this.setVelocityY(-170)
 					this.scene.sound.play("jump")
@@ -202,7 +215,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				// Shoot projectiles.
 				if (this.sprite == "frodo")
 				{
-					if(this.sKey.isDown && this.projectileCounter >= 15)    
+					if(this.controls.attack.isDown && this.projectileCounter >= 15)    
 					{
 						this.projectileGroup.add(new Projectile(this.scene, this.x, this.y, this.flipX, "playerProjectile", 160, 30))
 						this.scene.sound.play("sword")
@@ -217,7 +230,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 			else
 			{
 				// ### HORSE WALKING. ###
-				if (this.cursors.left.isDown)
+				if (this.controls.left.isDown)
 				{
 					if (this.body.velocity.y < 0) 
 					{
@@ -231,7 +244,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 					}
 					//console.log("aaaaa")
 				}
-				else if (this.cursors.right.isDown)
+				else if (this.controls.right.isDown)
 				{
 					//
 				}
@@ -241,7 +254,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 					this.setVelocityX(150)
 				}
 				
-				if (this.aKey.isDown && this.body.onFloor())
+				if (this.controls.jump.isDown && !this.waitJumpRelease && this.body.onFloor())
 				{
 					this.setVelocityY(-190)
 					this.scene.sound.play("jump")

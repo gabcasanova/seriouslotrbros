@@ -53,18 +53,46 @@ class Balrog extends Phaser.Scene
             .setDepth(2)
             .setInteractive({cursor: 'pointer'})
 
-        briefing.on('pointerdown', function (event) 
+        // Click, key or button starts the fight.
+        this.startFight = () =>
         {
+            if (this.started || this.fading) return
             this.started = true
             briefing.destroy()
-        }, this)
 
-        // Player.
+            Hints.show([
+                {action: "aim", label: "AIM"},
+                {action: "strike", label: "STRIKE"},
+                {action: "pan", label: "LOOK"}
+            ])
+        }
+        briefing.on('pointerdown', this.startFight, this)
+        Hints.show([{action: "confirm", label: "START"}])
+
+        // Player. Aim with the mouse, or with arrows / the left stick.
         this.keys = {
-            d: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-            a: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
             pointer: this.input.activePointer
         }
+        this.aim = {x: config.width/2, y: config.height/2}
+        this.aimWithMouse = true
+        this.input.on('pointermove', () =>
+        {
+            this.aimWithMouse = true
+            this.aim.x = this.keys.pointer.x
+            this.aim.y = this.keys.pointer.y
+        })
+
+        // Crosshair, shown when not aiming with the mouse.
+        this.reticle = this.add.graphics()
+            .lineStyle(1, 0xffffff, 1)
+            .strokeCircle(0, 0, 5)
+            .lineBetween(-8, 0, -3, 0).lineBetween(3, 0, 8, 0)
+            .lineBetween(0, -8, 0, -3).lineBetween(0, 3, 0, 8)
+            .setScrollFactor(0, 0)
+            .setDepth(2)
+            .setVisible(false)
+
+        this.flames = []
         this.playerCamera = {x: 350, y: config.height/2}
         this.cameras.main.startFollow(this.playerCamera, true, 0.2, 1)
 
@@ -110,13 +138,17 @@ class Balrog extends Phaser.Scene
                     sprite.displayHeight = 0
 
                     let clicked = false
-                    sprite.on('pointerdown', function (event) 
+                    sprite.collect = () =>
                     {
+                        if (clicked) return
                         clicked = true
                         this.collectedFlames += 1
                         this.sound.play("sword")
                         sprite.destroy()
-                    }, this);
+                    }
+                    sprite.on('pointerdown', sprite.collect, this);
+                    sprite.on('destroy', () => Phaser.Utils.Array.Remove(this.flames, sprite))
+                    this.flames.push(sprite)
 
                     // Size and position tween.
                     let sizePosTween = this.tweens.add({
@@ -157,6 +189,11 @@ class Balrog extends Phaser.Scene
 
     update(time, delta)
     {
+        if (!this.started && GameInput.justPressed("confirm"))
+        {
+            this.startFight()
+        }
+
         if (this.started)
         {
             this.projectileTimer.delay = 6000 / this.phaseLevel
@@ -176,15 +213,27 @@ class Balrog extends Phaser.Scene
                 this.phaseText.setText("PHASE: " + this.phaseLevel)
             }
 
-            // Player camera horizontal movement.
-            if (this.keys.a.isDown)
+            // Aim with arrows / left stick.
+            let stick = GameInput.stick()
+            if (stick.x != 0 || stick.y != 0)
+            {
+                this.aimWithMouse = false
+                this.aim.x = Phaser.Math.Clamp(this.aim.x + stick.x * 4, 0, config.width)
+                this.aim.y = Phaser.Math.Clamp(this.aim.y + stick.y * 4, 40, config.height)
+            }
+
+            // Player camera horizontal movement. Pushing the aim against the
+            // screen edge also looks around.
+            let edge = !this.aimWithMouse && stick.x != 0 &&
+                (this.aim.x <= 0 || this.aim.x >= config.width)
+            if (GameInput.isDown("panLeft") || (edge && stick.x < 0))
             {
                 if (this.playerCamera.x >= 217)
                 {
                     this.playerCamera.x -= 3
                 }
             }
-            else if (this.keys.d.isDown)
+            else if (GameInput.isDown("panRight") || (edge && stick.x > 0))
             {
                 if (this.playerCamera.x <= 475)
                 {
@@ -193,15 +242,36 @@ class Balrog extends Phaser.Scene
             }
 
             // Move Staff.
-            if (this.keys.pointer.y >= 117)
+            if (this.aim.y >= 117)
             {
-                this.moriaStaff.y = this.keys.pointer.y
+                this.moriaStaff.y = this.aim.y
             }
-            this.moriaStaff.x = this.keys.pointer.x
+            else
+            {
+                this.moriaStaff.y = 117
+            }
+            this.moriaStaff.x = this.aim.x
+
+            this.reticle.setPosition(this.aim.x, this.aim.y)
+            this.reticle.setVisible(!this.aimWithMouse)
+
+            // Strike the flames under the crosshair.
+            if (GameInput.justPressed("strike"))
+            {
+                let point = this.cameras.main.getWorldPoint(this.aim.x, this.aim.y)
+                this.flames.slice().forEach(flame =>
+                {
+                    let bounds = flame.getBounds()
+                    Phaser.Geom.Rectangle.Inflate(bounds, 4, 4)
+                    if (bounds.contains(point.x, point.y)) flame.collect()
+                })
+            }
 
             if (this.phaseLevel >= 10)
             {
                 this.started = false
+                this.reticle.setVisible(false)
+                Hints.hide()
                 this.moriaStaff.x = config.width/2
                 this.moriaStaff.y = config.height/2
                 if (!this.fading)

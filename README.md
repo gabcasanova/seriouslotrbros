@@ -16,7 +16,9 @@ Beat up evil Orcs, Goblins, Ringwraiths and jump through countless spikes, falli
 
 ## Important Information!
 
-**Controls: Arrow Keys (Movement) - A (Jump) - S (Attack)**
+**Controls: Arrow Keys (Movement) - A (Jump) - S (Attack) - Enter (Confirm / Skip)**
+
+**Xbox controller: D-Pad / Left Stick (Movement) - A (Jump) - X (Attack) - A / Start (Confirm / Skip)**. The game switches between keyboard and controller automatically, and the controls you can use right now are shown in the bottom-right corner.
 
 ``This game uses MP3, MP4 and WAV technologies. So make sure your browser supports these for a perfect gaming experience. The first time you play the game, it will load the assets so don't be surprised by a black screen appearing for a few seconds before the first level.``
 
