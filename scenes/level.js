@@ -166,6 +166,9 @@ class Level extends Phaser.Scene
         createParallax(this, config.width * 30, "background1", 0.25)
         createParallax(this, config.width * 30, "background2", 0.5)
 
+        // Drop shadows for the level, cast onto the backgrounds.
+        this.shadows = new LevelShadows(this, this.layers.slice(0, 3))
+
         // GUI.
         this.lifebar = this.add.sprite(10, config.height/2, "lifebar", this.player.lives)
         this.lifebar.setScrollFactor(0)

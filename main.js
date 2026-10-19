@@ -140,5 +140,6 @@ document.fonts.load("8px NES")
 
 var game = new Phaser.Game(config)
 AudioSettings.init(game)
+ShadowTuner.init()
 GameInput.init(game)
 game.events.once(Phaser.Core.Events.BOOT, () => Overlay.init(game))
