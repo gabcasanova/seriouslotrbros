@@ -27,7 +27,7 @@ Object.assign(Player.prototype, {
     createSonicAnims()
     {
         let f = SONIC_ANIM_FRAMES
-        let frames = (list) => list.map(n => ({key: "sonicSheet", frame: n}))
+        let frames = (list) => list.map(n => ({key: this.sprite, frame: n}))
         return [
             this.anims.create({key: "idle",     frames: frames(f.idle), frameRate: 1}),
             this.anims.create({key: "walking",  frames: frames(f.walk), frameRate: 10, repeat: -1}),

@@ -167,7 +167,13 @@ class Menu extends Phaser.Scene
             scene.leaveTo("Shop")
         })
 
-        this.creditsButton = new Button(this, config.width/2, 216, 4, function creditsAction(scene)
+        // Online and Credits side by side.
+        this.onlineButton = new Button(this, config.width/2 - 39, 216, 10, function onlineAction(scene)
+        {
+            scene.leaveTo("Online")
+        })
+
+        this.creditsButton = new Button(this, config.width/2 + 39, 216, 4, function creditsAction(scene)
         {
             scene.leaveTo("Credits")
         })
@@ -198,9 +204,9 @@ class Menu extends Phaser.Scene
 
         // Keyboard / gamepad selection. The mouse hovering a button selects it too.
         // The three menu buttons come first, then the two switches.
-        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle, this.shopButton]
+        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle, this.shopButton, this.onlineButton]
         // Layout for keyboard / gamepad: rows of button indices, top to bottom.
-        this.grid = [[3, 4], [0], [1, 5], [2]]
+        this.grid = [[3, 4], [0], [1, 5], [6, 2]]
         this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
         this.select(0)
 

@@ -29,7 +29,7 @@ class Level extends Phaser.Scene
         this.load.image("sonicRaw", "assets/sprites/sonic.png")
 
         // Sonic's sounds (Shop item).
-        if (ShopStore.isOn("sonic"))
+        if (ShopStore.owns("sonic"))
         {
             this.load.audio("ring", "assets/sounds/ring.mp3")
             this.load.audio("sonicJump", "assets/sounds/sonicJump.mp3")
@@ -87,6 +87,10 @@ class Level extends Phaser.Scene
 
     create()
     {
+        // Online: "coop" or "deathmatch" (see NetSession), else null.
+        this.online = Net.inGame ? Net.settings.mode : null
+        this.netSession = null
+
         // Mission briefing.
         this.cameras.main.fadeIn(500)
         this.sound.play("fanfare")
@@ -105,6 +109,7 @@ class Level extends Phaser.Scene
         // all of it, and the next one starts the level.
         this.advanceIntro = () =>
         {
+            if (this.online && !Net.isHost) return // The host starts it for everyone.
             if (!this.intro.done) this.intro.skip()
             else this.startLevel()
         }
@@ -113,6 +118,7 @@ class Level extends Phaser.Scene
         {
             if (!this.briefing) return
             this.briefing = false
+            if (this.online == "coop" && Net.isHost) this.netSession.sendGo()
 
             intro.objects.forEach(o => o.destroy())
             blackscreen.destroy()
@@ -133,11 +139,18 @@ class Level extends Phaser.Scene
             {
                 this.player.canMove = true
                 this.showPlayHints()
+                if (this.netSession && this.online == "deathmatch") this.netSession.startClock()
             })
         }
 
         blackscreen.on('pointerdown', () => this.advanceIntro());
-        Hints.show([{action: "confirm", label: "SKIP"}])
+        if (this.online && !Net.isHost)
+        {
+            Hints.hide()
+            intro.objects.push(addNesText(this, config.width / 2, 192, "WAITING FOR THE HOST", "#f8b800", true, true)
+                .setScrollFactor(0).setDepth(5))
+        }
+        else Hints.show([{action: "confirm", label: "SKIP"}])
 		
 		// Enemy projectiles group.
 		this.enemyProjectiles = this.physics.add.group()
@@ -145,7 +158,14 @@ class Level extends Phaser.Scene
         // Create player. Sonic (from the Shop) takes Frodo's place, but not
         // on the horse ride.
         this.sonic = ShopStore.isOn("sonic") && currentLevel <= 8 && currentLevel != 6
-        if (this.sonic)
+        if (this.online)
+        {
+            // Online: your own character and color, on every stage.
+            this.sonic = Net.me.character == "sonic"
+            if (this.sonic) buildSonicSprites(this)
+            this.player = new Player(this, 200, 100, playerTexture(this, this.sonic ? "sonic" : "frodo", Net.me.color))
+        }
+        else if (this.sonic)
         {
             buildSonicSprites(this)
             this.player = new Player(this, 200, 100, "sonicSheet")
@@ -186,8 +206,8 @@ class Level extends Phaser.Scene
 			console.warn("Stage " + currentLevel + " has " + this.coinIds.length + " coins; update COINS_PER_STAGE in scripts/coins.js.")
 		}
 		
-		// Destroy AI player if disabled in map.
-        if (!map.properties[0].value)
+		// Destroy AI player if disabled in map (or online: real friends instead).
+        if (!map.properties[0].value || this.online)
         {
             this.aiPlayer.destroy()
         }
@@ -204,7 +224,7 @@ class Level extends Phaser.Scene
         this.lifebar = this.add.sprite(10, config.height/2, "lifebar", this.player.lives)
         this.lifebar.setScrollFactor(0)
         this.lifebar.setDepth(3)
-        this.lifebar.setVisible(!this.sonic) // Sonic has rings instead.
+        this.lifebar.setVisible(!this.sonic || this.online == "deathmatch") // Sonic has rings instead.
 
         // Super charge bar and keys, top-left.
         if (this.player.canSuper()) this.player.charge = carriedCharge
@@ -229,16 +249,45 @@ class Level extends Phaser.Scene
             this.caradhrasSnowSmall.setDepth(-1)
             this.caradhrasSnowSmall.visible = false
 
-            // Ai Players.
-            let gandalf = new AiPlayer(this, this.player.x - 20, this.player.y, "gandalfSprites", 75)
-            this.physics.add.collider(gandalf, this.layers[1]);
+            // Ai Players (not online).
+            if (!this.online)
+            {
+                let gandalf = new AiPlayer(this, this.player.x - 20, this.player.y, "gandalfSprites", 75)
+                this.physics.add.collider(gandalf, this.layers[1]);
 
-            let aragorn = new AiPlayer(this, this.player.x - 40, this.player.y, "aragornSprites", 135)
-            this.physics.add.collider(aragorn, this.layers[1]);
+                let aragorn = new AiPlayer(this, this.player.x - 40, this.player.y, "aragornSprites", 135)
+                this.physics.add.collider(aragorn, this.layers[1]);
 
-            let legolas = new AiPlayer(this, this.player.x - 60, this.player.y, "legolasSprites", 195)
-            this.physics.add.collider(legolas, this.layers[1]);
+                let legolas = new AiPlayer(this, this.player.x - 60, this.player.y, "legolasSprites", 195)
+                this.physics.add.collider(legolas, this.layers[1]);
+            }
         }
+
+        // Online: the other players, names, and the mode's rules.
+        if (this.online)
+        {
+            this.netSession = new NetSession(this)
+            // Deathmatch: straight into the fight.
+            if (this.online == "deathmatch") { this.intro.skip(); this.startLevel() }
+        }
+    }
+
+    // Someone reached the end spot (remote: another player online did).
+    reachEnd(remote)
+    {
+        if (this.levelFinished) return
+        if (!remote && this.player.lives <= 0) return // Too late if dying.
+
+        this.levelFinished = true
+        this.player.canMove = false
+        this.player.setVelocityX(0)
+        if (currentLevel != 6) this.player.play("idle")
+
+        this.sound.stopAll()
+        this.sound.play("actClear")
+        this.finishLevel()
+
+        if (!remote && this.netSession) Net.send({t: "finish"})
     }
 
     importObjects(layer)
@@ -248,9 +297,15 @@ class Level extends Phaser.Scene
         this.coinsCollected = new Set() // Map coins picked up (they don't come back).
         this.coinCount = 0               // Coins held now (Sonic can lose rings).
 
+        // Deathmatch: just the stage and its hazards, no enemies or goals.
+        const DEATHMATCH_SKIP = ["coin", "endSpot", "lockScreen", "shooter", "orc", "goblin", "bomb",
+            "blackrider", "redKey", "yellowKey", "redBlock", "yellowBlock"]
+
         // Import objects from layer.
         layer.forEach(object => 
         {
+            if (this.online == "deathmatch" && DEATHMATCH_SKIP.includes(object.type)) return
+
             switch(object.type)
             {
                 case "playerStart":
@@ -282,7 +337,7 @@ class Level extends Phaser.Scene
                 case "orc":
 				case "goblin":
 				case "bomb":
-                    new Enemy(
+                    let enemy = new Enemy(
                         this, object.x, object.y, object.type, 
                         object.properties[0].value, object.properties[1].value
                     )
@@ -318,7 +373,7 @@ class Level extends Phaser.Scene
                 this.sonic ? {action: "spindash", label: "SPINDASH"} : {action: "attack", label: "ATTACK"}
             ]
             if (this.player.superReady()) hints.push({action: "super", label: "SUPER"})
-            hints.push({action: "pause", label: "PAUSE", top: true})
+            hints.push({action: "pause", label: this.online ? "MENU" : "PAUSE", top: true})
             Hints.show(hints)
         }
     }
@@ -354,6 +409,7 @@ class Level extends Phaser.Scene
             this.showPlayHints()
         }
         this.hud.update()
+        if (this.netSession) this.netSession.update(this.game.loop.delta)
 
         // Update lifebar.
         this.lifebar.setFrame(this.player.lives)
@@ -439,7 +495,15 @@ class Level extends Phaser.Scene
                 carriedCharge = this.player.superReady() ? SUPER_CHARGE_MAX : 0
             }
 
-            if (currentLevel < 9)
+            if (this.online == "coop")
+            {
+                // Online co-op: on to the next stage together (skipping the
+                // horse ride), and back to the room after Moria.
+                if (currentLevel >= 9) { Net.inGame = false; this.scene.start("Online"); return }
+                currentLevel = (currentLevel + 1 == 6) ? 7 : currentLevel + 1
+                this.scene.restart()
+            }
+            else if (currentLevel < 9)
             {
                 currentLevel += 1
                 this.scene.restart()

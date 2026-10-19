@@ -20,7 +20,7 @@ const BINDINGS = {
     strike:   {keys: ["KeyS", "Space"], buttons: [PAD.A, PAD.X]},
     panLeft:  {keys: ["KeyA"], buttons: [PAD.LB]},
     panRight: {keys: ["KeyD"], buttons: [PAD.RB]},
-    pause:    {keys: ["Escape", "KeyP", "Enter"], buttons: [PAD.START]},
+    pause:    {keys: ["Enter", "KeyP"], buttons: [PAD.START]},
     cancel:   {keys: ["Escape", "Backspace"], buttons: [PAD.B]}
 }
 
@@ -40,6 +40,10 @@ const GameInput = {
     {
         window.addEventListener("keydown", (e) =>
         {
+            // Typing in a text box (online lobby) isn't game input.
+            let tag = e.target && e.target.tagName
+            if (tag == "INPUT" || tag == "TEXTAREA" || tag == "SELECT") return
+
             if (GAME_KEYS.has(e.code)) e.preventDefault()
             if (!e.repeat) this.keysPressed.add(e.code)
             this.keysDown.add(e.code)
@@ -66,7 +70,12 @@ const GameInput = {
             if (p && p.connected) { pad = p; break }
         }
 
-        if (!pad)
+        // The browser gives the controller to every visible window, so with
+        // two game windows open for online play it would drive both players.
+        // Online, only the focused window listens to it.
+        let unfocused = typeof Net != "undefined" && Net.active && !document.hasFocus()
+
+        if (!pad || unfocused)
         {
             this.padDown = []
             this.axes = [0, 0]

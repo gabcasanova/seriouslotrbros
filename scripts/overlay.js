@@ -61,6 +61,7 @@ const Overlay = {
         // The canvas can be wider than the window (it's cropped then), so
         // keep the hints inside the part that's actually visible.
         this.root.style.setProperty("--clip-right", Math.max(0, r.right - window.innerWidth) + "px")
+        this.root.style.setProperty("--clip-left", Math.max(0, -r.left) + "px")
         this.root.style.setProperty("--clip-bottom", Math.max(0, r.bottom - window.innerHeight) + "px")
     }
 }
@@ -70,7 +71,7 @@ const HINT_GLYPHS = {
     keyboard: {
         move: ["left", "right"], navigate: ["up", "down"], aim: ["arrows"], pan: ["A", "D"],
         jump: ["A"], attack: ["S"], confirm: ["ENTER"], skip: ["ENTER"], strike: ["S"], back: ["left"],
-        pause: ["ESC"], cancel: ["ESC"], choose: ["left", "right"], super: ["D"], spindash: ["down", "plus", "A"]
+        pause: ["ENTER"], cancel: ["ESC"], choose: ["left", "right"], super: ["D"], spindash: ["down", "plus", "A"]
     },
     gamepad: {
         move: ["dpad"], navigate: ["dpad"], aim: ["LS"], pan: ["LB", "RB"],

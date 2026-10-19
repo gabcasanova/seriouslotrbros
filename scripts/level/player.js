@@ -11,7 +11,9 @@ class Player extends Phaser.Physics.Arcade.Sprite
         scene.add.existing(this)
         scene.physics.add.existing(this)
 		this.sprite = sprite
-		this.isSonic = (sprite == "sonicSheet") // Bought in the Shop.
+		// Sprite keys can have an online color suffix ("frodo_3", "sonicSheet_2").
+		this.isSonic = sprite.startsWith("sonicSheet") // Bought in the Shop.
+		this.isFrodo = sprite.startsWith("frodo")
 
         let playerAnimations = this.isSonic ? this.createSonicAnims() : [
             this.anims.create ({
@@ -156,7 +158,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 
     // Only Frodo on foot can attack (not Legolas' horse, not Gandalf).
     canSuper() {
-        return this.sprite == "frodo" && currentLevel != 6
+        return this.isFrodo && currentLevel != 6
     }
 
     superReady() {
@@ -172,6 +174,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
     megaSlash() {
         this.charge = 0
         this.superGroup.add(new MegaSlash(this.scene, this.x, this.y, this.flipX))
+        if (this.scene.netSession) this.scene.netSession.sendShot(this.x, this.y, this.flipX, true)
         this.scene.sound.play("sword")
         this.scene.cameras.main.flash(120, 255, 255, 255)
     }
@@ -182,17 +185,22 @@ class Player extends Phaser.Physics.Arcade.Sprite
         else this.setVelocityY(-250)
     }
 
-    hurt() {
+    // `by`: the online player who hit us (deathmatch), `amount`: lives lost.
+    hurt(by, amount) {
         // Nothing can hurt you once you've reached the end of the level.
         if (this.scene.levelFinished) return
 
-        // Sonic has rings instead of lives.
-        if (this.isSonic) return this.sonicHurt()
+        let net = this.scene.netSession
+        if (net && (net.dead || net.over)) return
+
+        // Sonic has rings instead of lives (not in deathmatch: fair fights).
+        if (this.isSonic && !(net && net.mode == "deathmatch")) return this.sonicHurt()
 
         if (this.timer.execute) {
             this.scene.cameras.main.shake(100, 0.007);
             this.scene.sound.play("bump")
-            this.lives -= 1 // Remove a life.
+            this.lives -= (amount || 1) // Remove a life.
+            this.lastHitBy = by || null
 
             this.timer.execute = false
             this.timer.current = this.timer.max
@@ -274,11 +282,12 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				}
 				
 				// Shoot projectiles.
-				if (this.sprite == "frodo")
+				if (this.isFrodo)
 				{
 					if(this.controls.attack.isDown && this.projectileCounter >= 15)    
 					{
 						this.projectileGroup.add(new Projectile(this.scene, this.x, this.y, this.flipX, "playerProjectile", 160, 30))
+						if (this.scene.netSession) this.scene.netSession.sendShot(this.x, this.y, this.flipX, false)
 						this.scene.sound.play("sword")
 						this.projectileCounter = 0;
 					}
@@ -349,7 +358,14 @@ class Player extends Phaser.Physics.Arcade.Sprite
 
         // Restart level with a fade out.
         if (this.lives <= 0 && !this.scene.levelFinished) {
-            if (!this.fading) {
+            if (!this.fading && this.scene.netSession) {
+                // Online: no restart; drop out and come back (see NetSession).
+                this.fading = true
+                this.canMove = false
+                this.setVelocityX(0)
+                this.scene.netSession.localDied()
+            }
+            else if (!this.fading) {
                 // No more control while dying.
                 this.canMove = false
                 this.setVelocityX(0)

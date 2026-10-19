@@ -9,6 +9,15 @@ class Pause extends Phaser.Scene
     // Pause the given scene and show this one over it.
     static open(scene)
     {
+        // Online the game can't stop for everyone: just a menu over it, and
+        // no restarting.
+        if (scene.online || scene.netSession || Net.inGame)
+        {
+            scene.player.canMove = false
+            scene.player.setVelocityX(0)
+            scene.scene.launch("Pause", {target: scene.scene.key, hints: Hints.current, online: true})
+            return
+        }
         scene.sound.pauseAll()
         scene.scene.launch("Pause", {target: scene.scene.key, hints: Hints.current})
         scene.scene.pause()
@@ -18,6 +27,7 @@ class Pause extends Phaser.Scene
     {
         this.target = data.target
         this.previousHints = data.hints
+        this.online = !!data.online
     }
 
     create()
@@ -33,7 +43,12 @@ class Pause extends Phaser.Scene
         addNesText(this, config.width / 2, y + 8, "PAUSE", "#ffffff", true)
 
         let onOff = (kind) => AudioSettings[kind] ? "ON" : "OFF"
-        this.options = [
+        this.options = this.online ? [
+            {label: () => "RESUME",     action: () => this.resume()},
+            {label: () => "MUSIC: " + onOff("music"), action: () => this.toggle("music"), toggle: true},
+            {label: () => "SFX: " + onOff("sfx"),     action: () => this.toggle("sfx"), toggle: true},
+            {label: () => "LEAVE ROOM", action: () => this.leaveRoom()}
+        ] : [
             {label: () => "RESUME",    action: () => this.resume()},
             {label: () => "RESTART",   action: () => this.restart()},
             {label: () => "MUSIC: " + onOff("music"), action: () => this.toggle("music"), toggle: true},
@@ -91,9 +106,27 @@ class Pause extends Phaser.Scene
     resume()
     {
         Hints.show(this.previousHints)
-        this.sound.resumeAll()
-        this.scene.resume(this.target)
+        if (this.online)
+        {
+            let level = this.scene.get(this.target)
+            if (level.netSession && !level.netSession.dead && !level.netSession.over) level.player.canMove = true
+        }
+        else
+        {
+            this.sound.resumeAll()
+            this.scene.resume(this.target)
+        }
         this.scene.stop()
+    }
+
+    leaveRoom()
+    {
+        Net.leave()
+        this.leave(() =>
+        {
+            this.scene.stop(this.target)
+            this.scene.start("Menu", {skipIntro: true})
+        })
     }
 
     // Fade the whole screen out, then run done.

@@ -28,6 +28,8 @@ class LevelHud
         this.coinText = addNesText(scene, 20, coinY, this.coinLabel(), "#ffffff", false, true)
             .setScrollFactor(0).setDepth(3)
         this.coinsShown = 0
+        // Deathmatch has no coins.
+        if (scene.online == "deathmatch") { this.coinIcon.setVisible(false); this.coinText.setVisible(false) }
 
         // Keys appear next to the bar once picked up.
         this.keys = {

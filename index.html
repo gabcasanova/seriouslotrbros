@@ -110,6 +110,59 @@
 				margin: 0 calc(var(--hp) * -1);
 			}
 
+			/* Online lobby form, on the right of the screen. */
+			.online-panel {
+				position: absolute;
+				top: calc(var(--px) * 12);
+				right: calc(var(--px) * 12 + var(--clip-right, 0px));
+				width: calc(var(--hp) * 250);
+				max-width: calc(100% - var(--px) * 160 - var(--clip-right, 0px) - var(--clip-left, 0px));
+				max-height: calc(100% - var(--px) * 24);
+				overflow-y: auto;
+				box-sizing: border-box;
+				padding: calc(var(--hp) * 8);
+				background: #000;
+				border: calc(var(--hp) * 2) solid #fcfcfc;
+				border-radius: calc(var(--hp) * 2);
+				color: #fcfcfc;
+				font: calc(var(--hp) * 8) / 1.4 "NES", monospace;
+				pointer-events: auto;
+			}
+			.online-panel label { display: block; margin: calc(var(--hp) * 6) 0 calc(var(--hp) * 3); color: #bcbcbc; }
+			.online-panel .row { display: flex; gap: calc(var(--hp) * 4); align-items: center; margin: calc(var(--hp) * 3) 0; flex-wrap: wrap; }
+			.online-panel input {
+				font: inherit; color: #fcfcfc; background: #202020; text-transform: uppercase;
+				border: calc(var(--hp) * 1) solid #7c7c7c; padding: calc(var(--hp) * 2) calc(var(--hp) * 4);
+				width: calc(var(--hp) * 120); outline: none;
+			}
+			.online-panel input:focus { border-color: #fcfcfc; }
+			.online-panel button {
+				font: inherit; color: #fcfcfc; background: #303030; cursor: pointer;
+				border: calc(var(--hp) * 1) solid #7c7c7c; padding: calc(var(--hp) * 2) calc(var(--hp) * 5);
+			}
+			.online-panel button:hover:not(:disabled), .online-panel button.on { border-color: #fcfcfc; background: #4c4c4c; }
+			.online-panel button.on { color: #f8b800; }
+			.online-panel button:disabled { color: #5c5c5c; cursor: default; }
+			.online-panel button.big { color: #f8b800; }
+			.online-panel .swatch { width: calc(var(--hp) * 14); height: calc(var(--hp) * 14); padding: 0; }
+			.online-panel .swatch.on { outline: calc(var(--hp) * 1) solid #fcfcfc; outline-offset: calc(var(--hp) * 1); }
+			.online-panel .code { color: #f8b800; letter-spacing: calc(var(--hp) * 2); }
+			.online-panel .players { list-style: none; padding: 0; margin: calc(var(--hp) * 4) 0; }
+			.online-panel .players span { color: #7c7c7c; }
+			.online-panel .stage { min-width: calc(var(--hp) * 120); text-align: center; }
+			.online-panel .message { color: #f8b800; margin: calc(var(--hp) * 6) 0 0; word-break: break-all; }
+			.online-panel h3 { font: inherit; margin: 0 0 calc(var(--hp) * 4); color: #fcfcfc; }
+			.online-panel .dim { color: #7c7c7c; }
+			.online-panel .thumb { display: block; width: calc(var(--hp) * 128); height: calc(var(--hp) * 72); image-rendering: pixelated; }
+			.online-panel .stage-pick { flex-wrap: nowrap; }
+			.online-panel .stage-card { display: flex; flex-direction: column; align-items: center; gap: calc(var(--hp) * 2); }
+			.online-panel .votes { flex-wrap: nowrap; align-items: stretch; }
+			.online-panel .vote-card { display: flex; flex-direction: column; align-items: center; gap: calc(var(--hp) * 3); padding: calc(var(--hp) * 3); }
+			.online-panel .vote-card .thumb { width: calc(var(--hp) * 72); height: calc(var(--hp) * 40); }
+			.online-panel .vote-card.focus { border-color: #fcfcfc; }
+			.online-panel .voters { display: flex; gap: calc(var(--hp) * 2); min-height: calc(var(--hp) * 6); }
+			.online-panel .voters i { width: calc(var(--hp) * 6); height: calc(var(--hp) * 6); display: block; }
+
 			/* Hints that shouldn't clutter the bottom (e.g. pause). */
 			#hints-top {
 				bottom: auto;
@@ -230,6 +283,9 @@
         <!-- Load phaser engine. -->
         <script src="phaser.js"></script> 
 
+        <!-- Online play (peer-to-peer). -->
+        <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
         <!-- Load plugins. -->
 
         <!-- Load scripts. -->
@@ -253,6 +309,9 @@
         <script src = "scripts/level/shadows.js"></script>
         <script src = "scripts/level/hud.js"></script>
         <script src = "scripts/level/stageIntro.js"></script>
+        <script src = "scripts/net/net.js"></script>
+        <script src = "scripts/net/palettes.js"></script>
+        <script src = "scripts/net/remotePlayers.js"></script>
         <script src = "scripts/button.js"></script>
 
         <!-- Load scenes. -->
@@ -264,6 +323,7 @@
         <script src = "scenes/play.js"></script>
         <script src = "scenes/levelSelect.js"></script>
         <script src = "scenes/shop.js"></script>
+        <script src = "scenes/online.js"></script>
         <script src = "scenes/pause.js"></script>
         <script src = "scripts/shadowTuner.js"></script>
         
