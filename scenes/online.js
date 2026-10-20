@@ -14,6 +14,51 @@ const VOTE_CHOICES = 3
 // it's being created.
 const NEED_PLAYERS = "YOU NEED AT LEAST 2 PLAYERS"
 
+// How big each online stage is, for picking a deathmatch stage that suits
+// the room. Measured by map area: small is under 8 screens, big 14 or more.
+const STAGE_SIZE = {0: "NORMAL", 1: "NORMAL", 2: "SMALL", 3: "SMALL", 4: "SMALL", 5: "BIG", 7: "NORMAL", 8: "NORMAL", 9: "BIG"}
+
+// The stage size that best fits a number of players.
+function bestStageSize(players)
+{
+    return players <= 3 ? "SMALL" : players <= 5 ? "NORMAL" : "BIG"
+}
+
+// "First time online?" help, one short window at a time. (The NES font has
+// no ( ) / % + * or ; so the text avoids them.)
+const ONLINE_HELP = [
+    {title: "ONLINE PLAY", text: [
+        "2 TO 8 PLAYERS PLAY TOGETHER, EACH IN THEIR OWN BROWSER.",
+        "ONE PLAYER CREATES A ROOM AND SHARES ITS 5-LETTER CODE. THE OTHERS JOIN WITH IT.",
+        "WHOEVER CREATED THE ROOM IS THE HOST: THEY PICK THE MODE AND THE STAGE, AND START THE GAME. IT TAKES AT LEAST 2 PLAYERS."]},
+    {title: "CO-OP", text: [
+        "EVERYONE PLAYS THE SAME STAGE TOGETHER. THE HOST STARTS EACH STAGE FOR ALL.",
+        "THE STAGE IS CLEARED WHEN EVERY PLAYER HAS REACHED THE EXIT, SO WAIT FOR YOUR FRIENDS!",
+        "IF YOU DIE, YOU COME BACK AT THE START. THE STAGE DOESN'T RESTART."]},
+    {title: "CO-OP: WHAT'S SHARED", text: [
+        "SHARED: THE PLAYERS, THE KEYS AND COLORED KEY WALLS, AND THE BLACK RIDERS' HEALTH.",
+        "NOT SHARED: ENEMIES, COINS, LIVES AND OTHER ITEMS. EVERY PLAYER HAS THEIR OWN.",
+        "SENDING EVERY ENEMY AND COIN BACK AND FORTH WOULD SLOW THE GAME DOWN. SO AN ENEMY YOU SEE MAY ALREADY BE GONE ON A FRIEND'S SCREEN."]},
+    {title: "DEATHMATCH", text: [
+        "NO ENEMIES, JUST PLAYERS. SWORD SHOTS AND THE SUPER SLASH HURT THE OTHERS, AND HITS CHARGE YOUR SUPER.",
+        "EVERY KILL IS A POINT. MATCHES LAST 3 MINUTES, AND YOU COME BACK AT A RANDOM SPOT AFTER DYING.",
+        "AFTER EACH MATCH, EVERYONE VOTES FOR THE NEXT STAGE."]},
+    {title: "STAGE SIZES", text: [
+        "WHEN VOTING, EVERY STAGE SHOWS ITS SIZE: SMALL, NORMAL OR BIG.",
+        "SMALL STAGES SUIT 2 OR 3 PLAYERS, NORMAL ONES 4 OR 5, AND BIG ONES 6 TO 8. THE SIZE THAT FITS YOUR ROOM IS SHOWN IN YELLOW.",
+        "FEW PLAYERS ON A BIG STAGE CAN SPEND A WHILE LOOKING FOR EACH OTHER. MANY ON A SMALL ONE GETS CROWDED."]},
+    {title: "WHY DEATHMATCH CAN FEEL SLOWER", text: [
+        "EVERY HIT HAS TO TRAVEL FROM ONE BROWSER TO ANOTHER.",
+        "A HIT COUNTS ON THE SCREEN OF THE PLAYER WHO GETS HIT, SO IT'S ALWAYS FAIR TO THEM. BUT ON A SLOW CONNECTION IT CAN LAND A MOMENT LATE,",
+        "AND THE OTHER PLAYERS CAN LOOK A LITTLE BEHIND WHERE THEY REALLY ARE."]},
+    {title: "THE CONNECTION", text: [
+        "THERE'S NO GAME SERVER: THE BROWSERS CONNECT TO EACH OTHER, AND EVERYTHING GOES THROUGH THE HOST'S.",
+        "A HOST WITH A GOOD CONNECTION MAKES THE GAME SMOOTHER FOR EVERYONE. IF THE HOST LEAVES, THE ROOM CLOSES.",
+        "SOME SCHOOL OR WORK NETWORKS BLOCK THIS KIND OF CONNECTION. IF YOU CAN'T JOIN, TRY ANOTHER NETWORK."]},
+    {title: "TIPS", text: [
+        "THE MENU, ENTER OR START, DOESN'T PAUSE THE GAME FOR THE OTHERS: YOUR CHARACTER JUST STANDS STILL. IT ALSO SHOWS WHO'S IN THE ROOM AND THE SCORES."]}
+]
+
 class Online extends Phaser.Scene
 {
     constructor()
@@ -55,7 +100,8 @@ class Online extends Phaser.Scene
         Overlay.root.appendChild(this.panel)
         this.panel.addEventListener("click", (e) => this.click(e))
         this.panel.addEventListener("input", (e) => this.typed(e))
-        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.panel.remove())
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.panel.remove(); this.closeHelp() })
+        this.helpPage = null
 
         Net.listen(this, "room", () => this.onRoom())
         Net.listen(this, "left", () => this.render())
@@ -128,7 +174,62 @@ class Online extends Phaser.Scene
             <div class="row">
                 <button data-act="next" class="big">NEXT</button>
                 <button data-act="back">BACK</button>
+            </div>
+            <label class="help-label">FIRST TIME ONLINE?</label>
+            <div class="row"><button data-act="help">HOW ONLINE WORKS</button></div>`
+    }
+
+    // ---- First-time help -------------------------------------------------------
+
+    // A window over everything, one ONLINE_HELP page at a time.
+    openHelp(page)
+    {
+        if (!this.help)
+        {
+            this.help = document.createElement("div")
+            this.help.className = "online-panel online-help"
+            Overlay.root.appendChild(this.help)
+            this.help.addEventListener("click", (e) =>
+            {
+                let b = e.target.closest("button")
+                if (!b) return
+                b.blur()
+                this.helpClicked = true
+                let go = Number(b.dataset.help)
+                if (b.dataset.help == "close") this.closeHelp()
+                else this.turnHelp(go)
+            })
+        }
+        this.helpPage = page
+        let n = ONLINE_HELP.length
+        let entry = ONLINE_HELP[page]
+        this.help.innerHTML = `
+            <h3>${entry.title}</h3>
+            ${entry.text.map(t => `<p>${t}</p>`).join("")}
+            <div class="row help-nav">
+                <button data-help="${page == 0 ? "close" : -1}">${page == 0 ? "CLOSE" : "BACK"}</button>
+                <span class="dim">${page + 1} OF ${n}</span>
+                <button data-help="${page == n - 1 ? "close" : 1}" class="big">${page == n - 1 ? "DONE" : "NEXT"}</button>
             </div>`
+    }
+
+    // dir: -1 back, 1 next. Past either end closes the help.
+    turnHelp(dir)
+    {
+        let page = this.helpPage + dir
+        if (page < 0 || page >= ONLINE_HELP.length) this.closeHelp()
+        else
+        {
+            this.sound.play("menuMove")
+            this.openHelp(page)
+        }
+    }
+
+    closeHelp()
+    {
+        if (this.help) this.help.remove()
+        this.help = null
+        this.helpPage = null
     }
 
     roomsPage()
@@ -167,6 +268,7 @@ class Online extends Phaser.Scene
                 <div class="stage-card">
                     <canvas class="thumb" data-thumb="${s.stage}" width="256" height="144"></canvas>
                     <span>${this.stageName(entry)}</span>
+                    ${s.mode == "deathmatch" ? this.sizeTag(s.stage) : ""}
                 </div>
                 <button data-stage="1" ${host ? "" : "disabled"}>&gt;</button>
             </div>
@@ -193,18 +295,31 @@ class Online extends Phaser.Scene
             let cls = (mine == stage ? " on" : "") + (i == this.voteChoice ? " focus" : "")
             return `<button data-vote="${stage}" class="vote-card${cls}">
                 <canvas class="thumb" data-thumb="${stage}" width="256" height="144"></canvas>
-                <span>${this.stageName(entry)}</span>
-                <div class="voters">${voters}</div>
+                <div class="vote-info">
+                    <span>${this.stageName(entry)}</span>
+                    ${this.sizeTag(stage)}
+                    <div class="voters">${voters}</div>
+                </div>
             </button>`
         }).join("")
 
         return `
             <h3>VOTE FOR THE NEXT STAGE <span class="dim" data-timer>${left}</span></h3>
+            <p class="dim">BEST FOR ${Net.players.size} PLAYERS: ${bestStageSize(Net.players.size)}</p>
             <div class="row votes">${cards}</div>
             <div class="row">
                 ${Net.isHost ? `<button data-act="endVote">BACK TO ROOM</button>` : ""}
                 <button data-act="leave">LEAVE</button>
             </div>`
+    }
+
+    // "SMALL", "NORMAL" or "BIG", in yellow when it suits the room's size.
+    sizeTag(stage)
+    {
+        let size = STAGE_SIZE[stage]
+        if (!size) return ""
+        let fits = size == bestStageSize(Net.players.size)
+        return `<span class="size${fits ? " fits" : ""}">${size}</span>`
     }
 
     stageName(entry)
@@ -290,6 +405,7 @@ class Online extends Phaser.Scene
         }
         else if (d.vote) this.castVote(Number(d.vote))
         else if (d.act == "next") this.toRooms()
+        else if (d.act == "help") { this.sound.play("menuMove"); this.helpClicked = true; this.openHelp(0) }
         else if (d.act == "setup") { this.page = "setup"; this.message = ""; this.render() }
         else if (d.act == "create") this.createRoom()
         else if (d.act == "join") this.joinRoom(this.code || "")
@@ -386,6 +502,7 @@ class Online extends Phaser.Scene
         }
         Net.scores = {}
         Net.settings.vote = null
+        Net.settings.seed = Math.floor(Math.random() * 1000) // Deathmatch start spots.
         let settings = Object.assign({}, Net.settings)
         Net.send({t: "start", settings: settings})
         this.startGame(settings)
@@ -477,6 +594,17 @@ class Online extends Phaser.Scene
 
     update(time, delta)
     {
+        // The help window takes the keys while it's open.
+        if (this.help || this.helpClicked)
+        {
+            // Enter on a button clicks it and is a key press too: one or the other.
+            if (this.helpClicked) { this.helpClicked = false; return }
+            if (GameInput.justPressed("cancel")) this.closeHelp()
+            else if (GameInput.justPressed("left")) this.turnHelp(-1)
+            else if (GameInput.justPressed("right") || GameInput.justPressed("confirm")) this.turnHelp(1)
+            return
+        }
+
         if (this.page == "setup" && !Net.active && GameInput.justPressed("cancel")) this.back()
 
         // Host: re-send the vote every second, for anyone who arrived late
@@ -495,9 +623,10 @@ class Online extends Phaser.Scene
         if (this.page == "vote" && Net.settings.vote)
         {
             // Keyboard / gamepad voting.
+            // The stages are listed top to bottom; left/right work too.
             let n = Net.settings.vote.options.length
-            if (GameInput.justPressed("left"))  { this.voteChoice = (this.voteChoice + n - 1) % n; this.render() }
-            if (GameInput.justPressed("right")) { this.voteChoice = (this.voteChoice + 1) % n; this.render() }
+            if (GameInput.justPressed("up") || GameInput.justPressed("left"))  { this.voteChoice = (this.voteChoice + n - 1) % n; this.render() }
+            if (GameInput.justPressed("down") || GameInput.justPressed("right")) { this.voteChoice = (this.voteChoice + 1) % n; this.render() }
             if (GameInput.justPressed("confirm")) this.castVote(Net.settings.vote.options[this.voteChoice])
 
             // Countdown.

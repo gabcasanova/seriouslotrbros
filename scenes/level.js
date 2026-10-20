@@ -272,8 +272,16 @@ class Level extends Phaser.Scene
         if (this.online)
         {
             this.netSession = new NetSession(this)
-            // Deathmatch: straight into the fight.
-            if (this.online == "deathmatch") { this.intro.skip(); this.startLevel() }
+            if (this.online == "deathmatch")
+            {
+                // Everyone starts at their own spawn spot, not all together.
+                let spot = this.netSession.startSpot()
+                this.player.body.reset(spot.x, spot.y)
+                this.cameras.main.centerOn(spot.x, spot.y)
+                // Straight into the fight.
+                this.intro.skip()
+                this.startLevel()
+            }
         }
     }
 

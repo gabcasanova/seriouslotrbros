@@ -156,12 +156,32 @@
 			.online-panel .thumb { display: block; width: calc(var(--hp) * 128); height: calc(var(--hp) * 72); image-rendering: pixelated; }
 			.online-panel .stage-pick { flex-wrap: nowrap; }
 			.online-panel .stage-card { display: flex; flex-direction: column; align-items: center; gap: calc(var(--hp) * 2); }
-			.online-panel .votes { flex-wrap: nowrap; align-items: stretch; }
-			.online-panel .vote-card { display: flex; flex-direction: column; align-items: center; gap: calc(var(--hp) * 3); padding: calc(var(--hp) * 3); }
-			.online-panel .vote-card .thumb { width: calc(var(--hp) * 72); height: calc(var(--hp) * 40); }
+			.online-panel .votes { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+			.online-panel .vote-card { display: flex; align-items: center; gap: calc(var(--hp) * 6); padding: calc(var(--hp) * 3); text-align: left; }
+			.online-panel .vote-info { display: flex; flex-direction: column; gap: calc(var(--hp) * 2); }
+			.online-panel .vote-card .thumb { width: calc(var(--hp) * 64); height: calc(var(--hp) * 36); }
 			.online-panel .vote-card.focus { border-color: #fcfcfc; }
 			.online-panel .voters { display: flex; gap: calc(var(--hp) * 2); min-height: calc(var(--hp) * 6); }
 			.online-panel .voters i { width: calc(var(--hp) * 6); height: calc(var(--hp) * 6); display: block; }
+
+			.online-panel .size { color: #7c7c7c; }
+			.online-panel .size.fits { color: #f8b800; }
+			.online-panel .help-label { margin-top: calc(var(--hp) * 14); }
+
+			/* "First time online?" help: one window at a time, over the lobby. */
+			.online-panel.online-help {
+				top: 50%;
+				right: auto;
+				left: calc(var(--clip-left, 0px) + (100% - var(--clip-left, 0px) - var(--clip-right, 0px)) / 2);
+				transform: translate(-50%, -50%);
+				width: calc(var(--hp) * 300);
+				max-width: calc(100% - var(--px) * 24 - var(--clip-left, 0px) - var(--clip-right, 0px));
+				padding: calc(var(--hp) * 12);
+				z-index: 2;
+			}
+			.online-help h3 { color: #f8b800; margin-bottom: calc(var(--hp) * 8); }
+			.online-help p { margin: 0 0 calc(var(--hp) * 6); line-height: 1.6; }
+			.online-help .help-nav { justify-content: space-between; margin-top: calc(var(--hp) * 10); }
 
 			/* Hints that shouldn't clutter the bottom (e.g. pause). */
 			#hints-top {

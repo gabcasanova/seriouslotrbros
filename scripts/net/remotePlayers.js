@@ -316,6 +316,17 @@ class NetSession
         this.dead = false
     }
 
+    // Deathmatch start: a different spawn spot for each player. Players are
+    // taken in id order and the host's seed turns who gets which, so every
+    // screen agrees and each match starts differently.
+    startSpot()
+    {
+        let points = this.scene.spawnPoints
+        let ids = [...Net.players.keys()].sort()
+        let i = Math.max(0, ids.indexOf(Net.me.id))
+        return points[(i + (Net.settings.seed || 0)) % points.length]
+    }
+
     // A random spawn spot, away from the others if one is free.
     spawnSpot()
     {
