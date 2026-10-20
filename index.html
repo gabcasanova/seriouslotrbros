@@ -300,54 +300,65 @@
 		
         <title>Serious Lord of The Rings Bros.</title>
 
-        <!-- Load phaser engine. -->
-        <script src="phaser.js"></script> 
-
         <!-- Online play (peer-to-peer). -->
         <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-        <!-- Load plugins. -->
+        <!-- The game's version. RAISE IT EVERY TIME YOU PUBLISH AN UPDATE:
+             the scripts load with it in their address, so browsers fetch the
+             new ones instead of an old cached copy, and online rooms only
+             let in players with the same version. -->
+        <script>
+        const GAME_VERSION = 1
 
-        <!-- Load scripts. -->
-        <script src = "scripts/input.js"></script>
-        <script src = "scripts/audio.js"></script>
-        <script src = "scripts/coins.js"></script>
-        <script src = "scripts/progress.js"></script>
-        <script src = "scripts/shopStore.js"></script>
-        <script src = "scripts/nesFade.js"></script>
-        <script src = "scripts/overlay.js"></script>
-        <script src = "scripts/window.js"></script>
-		<script src = "scripts/level/bosses/blackrider.js"></script>
-        <script src = "scripts/level/aiPlayer.js"></script>
-        <script src = "scripts/level/playerProjectile.js"></script>
-        <script src = "scripts/level/enemy.js"></script>
-        <script src = "scripts/level/item.js"></script>
-        <script src = "scripts/level/parallax.js"></script>
-        <script src = "scripts/level/player.js"></script>
-        <script src = "scripts/level/sonicSprites.js"></script>
-        <script src = "scripts/level/sonicPlayer.js"></script>
-        <script src = "scripts/level/shadows.js"></script>
-        <script src = "scripts/level/hud.js"></script>
-        <script src = "scripts/level/stageIntro.js"></script>
-        <script src = "scripts/net/net.js"></script>
-        <script src = "scripts/net/palettes.js"></script>
-        <script src = "scripts/net/remotePlayers.js"></script>
-        <script src = "scripts/button.js"></script>
+        // A file's address with the version on it.
+        function versioned(url)
+        {
+            return /^(blob:|data:|https?:|\/\/)/.test(url) || url.includes("?") ? url : url + "?v=" + GAME_VERSION
+        }
+        </script>
 
-        <!-- Load scenes. -->
-        <script src = "scenes/credits.js"></script>
-        <script src = "scenes/balrog.js"></script>
-        <script src = "scenes/level.js"></script>
-        <script src = "scenes/menu.js"></script>
-        <script src = "scenes/select.js"></script>
-        <script src = "scenes/play.js"></script>
-        <script src = "scenes/levelSelect.js"></script>
-        <script src = "scenes/shop.js"></script>
-        <script src = "scenes/online.js"></script>
-        <script src = "scenes/pause.js"></script>
-        <script src = "scripts/shadowTuner.js"></script>
-        
-        <script src = "main.js"></script>
+        <!-- The engine, then the game's scripts and scenes, in this order. -->
+        <script>
+        [
+            "phaser.min.js", // Phaser 3.55.2, the official build. phaser.js is the same, readable.
+            "scripts/input.js",
+            "scripts/audio.js",
+            "scripts/coins.js",
+            "scripts/progress.js",
+            "scripts/shopStore.js",
+            "scripts/nesFade.js",
+            "scripts/overlay.js",
+            "scripts/window.js",
+            "scripts/level/bosses/blackrider.js",
+            "scripts/level/aiPlayer.js",
+            "scripts/level/playerProjectile.js",
+            "scripts/level/enemy.js",
+            "scripts/level/item.js",
+            "scripts/level/parallax.js",
+            "scripts/level/player.js",
+            "scripts/level/sonicSprites.js",
+            "scripts/level/sonicPlayer.js",
+            "scripts/level/shadows.js",
+            "scripts/level/hud.js",
+            "scripts/level/stageIntro.js",
+            "scripts/net/net.js",
+            "scripts/net/palettes.js",
+            "scripts/net/remotePlayers.js",
+            "scripts/button.js",
+            "scenes/credits.js",
+            "scenes/balrog.js",
+            "scenes/level.js",
+            "scenes/menu.js",
+            "scenes/select.js",
+            "scenes/play.js",
+            "scenes/levelSelect.js",
+            "scenes/shop.js",
+            "scenes/online.js",
+            "scenes/pause.js",
+            "scripts/shadowTuner.js",
+            "main.js"
+        ].forEach(src => document.write('<script src="' + versioned(src) + '"><\/script>'))
+        </script>
     </head>
 
     <body>

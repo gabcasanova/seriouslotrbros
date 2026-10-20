@@ -349,7 +349,7 @@ class Cutscene
 
         let video = document.createElement("video")
         video.className = "cutscene" + (framed ? " framed" : "")
-        video.src = src
+        video.src = versioned(src)
         video.playsInline = true
         video.preload = "auto"
         video.addEventListener("ended", () => this.finish())

@@ -5,6 +5,9 @@
 const NET_PREFIX = "slotrb-"
 const NET_MAX_PLAYERS = 8
 const NET_CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // No 0/O, 1/I.
+// Messages only the host may send. One arriving from a player is dropped,
+// not relayed: otherwise anyone could rewrite the room for everyone.
+const NET_HOST_ONLY = new Set(["room", "start", "go", "finish", "arrivals", "matchEnd", "welcome", "full", "version"])
 
 const Net = {
     peer: null,
@@ -115,11 +118,13 @@ const Net = {
                     this.code = code
                     this.hostConn = conn
                     this.me = Object.assign({id: id}, profile)
-                    conn.send({t: "hello", profile: profile})
+                    conn.send({t: "hello", profile: profile, version: GAME_VERSION})
                 })
                 conn.on("data", (msg) =>
                 {
+                    if (!msg || typeof msg != "object") return
                     if (msg.t == "full") { failed({type: "full"}); return }
+                    if (msg.t == "version") { failed({type: "version", older: msg.version > GAME_VERSION}); return }
                     if (msg.t == "welcome") { done = true; resolve(code) }
                     this.receive(msg)
                 })
@@ -133,9 +138,18 @@ const Net = {
     {
         conn.on("data", (msg) =>
         {
+            if (!msg || typeof msg != "object" || typeof msg.t != "string") return
             msg.from = conn.peer
             if (msg.t == "hello")
             {
+                // A different version of the game (one of us has an old copy
+                // cached): playing together would go wrong in odd ways.
+                if (msg.version !== GAME_VERSION)
+                {
+                    conn.send({t: "version", version: GAME_VERSION})
+                    setTimeout(() => conn.close(), 500)
+                    return
+                }
                 if (this.players.size >= NET_MAX_PLAYERS || this.inGame)
                 {
                     conn.send({t: "full"})
@@ -143,11 +157,12 @@ const Net = {
                     return
                 }
                 this.conns.set(conn.peer, conn)
-                this.players.set(conn.peer, Object.assign({id: conn.peer}, msg.profile))
+                this.players.set(conn.peer, Object.assign({id: conn.peer}, this.cleanProfile(msg.profile)))
                 conn.send({t: "welcome"})
                 this.sendRoom()
                 return
             }
+            if (!this.conns.has(conn.peer) || NET_HOST_ONLY.has(msg.t)) return
             // Pass it on to everyone else, and handle it here too.
             this.relay(msg, conn.peer)
             this.receive(msg)
@@ -187,13 +202,74 @@ const Net = {
 
     receive(msg)
     {
+        if (!msg || typeof msg != "object") return
         if (msg.t == "room")
         {
-            this.players = new Map(msg.players.map(p => [p.id, p]))
-            this.settings = msg.settings
-            this.scores = msg.scores || {}
+            let players = (Array.isArray(msg.players) ? msg.players : []).slice(0, NET_MAX_PLAYERS)
+                .map(p => Object.assign({id: this.cleanId(p && p.id)}, this.cleanProfile(p)))
+            this.players = new Map(players.map(p => [p.id, p]))
+            this.settings = this.cleanSettings(msg.settings)
+            this.scores = this.cleanScores(msg.scores)
         }
+        if (msg.t == "start") msg.settings = this.cleanSettings(msg.settings)
         this.emit(msg.t, msg)
+    },
+
+    // ---- Checking what arrives ------------------------------------------------
+    // A modified copy of the game could send anything, and names and stages
+    // end up in the lobby's HTML. So everything is rebuilt from known-good
+    // values, never passed on as it came.
+
+    cleanProfile(p)
+    {
+        p = p || {}
+        let name = String(p.name || "").toUpperCase().replace(/[^A-Z0-9 .!?-]/g, "").trim().slice(0, 10)
+        return {
+            name: name || "PLAYER",
+            character: p.character == "sonic" ? "sonic" : "frodo",
+            color: Number.isInteger(p.color) && PLAYER_COLORS[p.color] ? p.color : 0
+        }
+    },
+
+    // Peer ids are letters, digits and dashes.
+    cleanId(id)
+    {
+        return String(id || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 64)
+    },
+
+    cleanStage(stage)
+    {
+        return ONLINE_STAGES.includes(stage) ? stage : ONLINE_STAGES[0]
+    },
+
+    cleanSettings(s)
+    {
+        s = s || {}
+        let clean = {
+            mode: s.mode == "deathmatch" ? "deathmatch" : "coop",
+            stage: this.cleanStage(s.stage),
+            seed: Number.isInteger(s.seed) ? Math.abs(s.seed) % 1000 : 0,
+            vote: null
+        }
+        let v = s.vote
+        if (v && Array.isArray(v.options))
+        {
+            let votes = {}
+            for (let id in (v.votes || {})) if (ONLINE_STAGES.includes(v.votes[id])) votes[this.cleanId(id)] = v.votes[id]
+            clean.vote = {
+                options: v.options.filter(o => ONLINE_STAGES.includes(o)).slice(0, VOTE_CHOICES),
+                votes: votes,
+                left: Phaser.Math.Clamp(Number(v.left) || 0, 0, VOTE_TIME)
+            }
+        }
+        return clean
+    },
+
+    cleanScores(scores)
+    {
+        let clean = {}
+        for (let id in (scores || {})) if (Number.isInteger(scores[id])) clean[this.cleanId(id)] = Math.max(0, scores[id])
+        return clean
     },
 
     // Host: a player died in deathmatch; `by` scores a point.
@@ -233,6 +309,7 @@ const Net = {
     {
         let profile = {name: "PLAYER", character: "frodo", color: 0}
         try { Object.assign(profile, JSON.parse(localStorage.getItem("onlineProfile")) || {}) } catch (e) {}
+        profile = this.cleanProfile(profile)
         if (profile.character == "sonic" && !ShopStore.owns("sonic")) profile.character = "frodo"
         return profile
     },

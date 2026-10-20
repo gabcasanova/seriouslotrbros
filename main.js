@@ -1,3 +1,12 @@
+// Every file the game loads (images, maps, sounds) carries the version
+// too, so an update is never mixed with old cached files. See index.html.
+const loadFile = Phaser.Loader.File.prototype.load
+Phaser.Loader.File.prototype.load = function ()
+{
+    if (typeof this.url == "string") this.url = versioned(this.url)
+    loadFile.call(this)
+}
+
 var config = {
     type:Phaser.WEBGL,
     width: 430,

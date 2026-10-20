@@ -349,7 +349,7 @@ class Online extends Phaser.Scene
             if (!image)
             {
                 image = Online.thumbs[stage] = new Image()
-                image.src = "assets/levelselect/level" + LEVEL_SELECT.indexOf(entry) + ".png"
+                image.src = versioned("assets/levelselect/level" + LEVEL_SELECT.indexOf(entry) + ".png")
             }
             if (image.complete && image.naturalWidth) draw()
             else image.addEventListener("load", draw, {once: true})
@@ -458,6 +458,8 @@ class Online extends Phaser.Scene
         let type = err && err.type
         if (type == "peer-unavailable" || type == "timeout") return "NO ROOM WITH THAT CODE"
         if (type == "full") return "THAT ROOM IS FULL OR PLAYING"
+        // One of the two has an old copy of the game cached.
+        if (type == "version") return err.older ? "YOUR GAME IS OUT OF DATE. RELOAD THE PAGE AND TRY AGAIN" : "THE HOST'S GAME IS OUT OF DATE. THEY NEED TO RELOAD THE PAGE"
         if (type == "network" || type == "server-error" || type == "socket-error") return "CAN'T REACH THE ONLINE SERVER"
         return "COULDN'T CONNECT. TRY AGAIN"
     }
