@@ -27,6 +27,7 @@ class Level extends Phaser.Scene
         this.load.json("stages", "assets/stages.json")
         this.load.spritesheet("frodo", "assets/sprites/frodo.png", {frameWidth: 33, frameHeight: 33})
         this.load.image("sonicRaw", "assets/sprites/sonic.png")
+        loadPierre(this)
 
         // Sonic's sounds (Shop item).
         if (ShopStore.owns("sonic"))
@@ -157,18 +158,26 @@ class Level extends Phaser.Scene
 
         // Create player. Sonic (from the Shop) takes Frodo's place, but not
         // on the horse ride.
-        this.sonic = ShopStore.isOn("sonic") && currentLevel <= 8 && currentLevel != 6
+        // The same goes for Pierre.
+        let shopCharacter = currentLevel <= 8 && currentLevel != 6
+        this.sonic = ShopStore.isOn("sonic") && shopCharacter
+        this.pierre = ShopStore.isOn("pierre") && shopCharacter
         if (this.online)
         {
             // Online: your own character and color, on every stage.
             this.sonic = Net.me.character == "sonic"
+            this.pierre = Net.me.character == "pierre"
             if (this.sonic) buildSonicSprites(this)
-            this.player = new Player(this, 200, 100, playerTexture(this, this.sonic ? "sonic" : "frodo", Net.me.color))
+            this.player = new Player(this, 200, 100, playerTexture(this, Net.me.character, Net.me.color))
         }
         else if (this.sonic)
         {
             buildSonicSprites(this)
             this.player = new Player(this, 200, 100, "sonicSheet")
+        }
+        else if (this.pierre)
+        {
+            this.player = new Player(this, 200, 100, "pierre")
         }
         else if (currentLevel <= 8)
         {
@@ -465,16 +474,15 @@ class Level extends Phaser.Scene
         runCoinTally(this, this.coinCount, this.sonic ? "RINGS" : "COINS", 156, done)
     }
 
-    // "SONIC GOT THROUGH!": the "GOT THROUGH!" part of Frodo's banner with
-    // SONIC in big blue letters above it.
-    sonicGotThrough()
+    // "SONIC GOT THROUGH!" (or PIERRE): the "GOT THROUGH!" part of Frodo's
+    // banner with the name in big letters above it.
+    shopGotThrough(name, color, shadowColor)
     {
         let banner = this.add.container(config.width / 2, -100)
         let through = this.add.image(0, 0, "gotThrough", 0).setCrop(0, 38, 197, 16)
-        let name = "SONIC"
         let x = -name.length * 16
-        let shadow = new NesText(this, x + 3, -20, name, "#0000a8").setScale(4)
-        let letters = new NesText(this, x, -23, name, "#3c7cfc").setScale(4)
+        let shadow = new NesText(this, x + 3, -20, name, shadowColor).setScale(4)
+        let letters = new NesText(this, x, -23, name, color).setScale(4)
         banner.add([shadow, letters, through])
         return banner
     }
@@ -485,7 +493,11 @@ class Level extends Phaser.Scene
         let finishSprite
         if (this.sonic)
         {
-            finishSprite = this.sonicGotThrough()
+            finishSprite = this.shopGotThrough("SONIC", "#3c7cfc", "#0000a8")
+        }
+        else if (this.pierre)
+        {
+            finishSprite = this.shopGotThrough("PIERRE", "#3c7cfc", "#0000a8")
         }
         else if (currentLevel < 9)
         {

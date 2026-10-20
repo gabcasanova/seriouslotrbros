@@ -9,6 +9,7 @@ class Shop extends Phaser.Scene
     preload()
     {
         this.load.image("sonicRaw", "assets/sprites/sonic.png")
+        loadPierre(this)
         this.load.spritesheet("items", "assets/sprites/items.png", {frameWidth: 16, frameHeight: 16})
         this.load.audio("buy", "assets/sounds/life.wav")
         this.load.audio("menuMove", "assets/sounds/coin.wav")
@@ -36,7 +37,9 @@ class Shop extends Phaser.Scene
             let y = 32 + i * 52
             let row = {item: item, x: x, y: y, w: w, h: 46}
             row.frame = this.add.graphics()
-            row.icon = this.add.image(x + 26, y + 23, "sonicSheet", SONIC_ANIM_FRAMES.idle[0])
+            row.icon = item.id == "pierre"
+                ? this.add.image(x + 26, y + 24, "pierre", 0).setOrigin(0.5, PIERRE.originY)
+                : this.add.image(x + 26, y + 23, "sonicSheet", SONIC_ANIM_FRAMES.idle[0])
             row.name = addNesText(this, x + 52, y + 9, item.name)
             row.about = addNesText(this, x + 52, y + 21, item.about, "#a0a0a0")
             row.state = addNesText(this, x + 52, y + 33, "")

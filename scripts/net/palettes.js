@@ -13,13 +13,17 @@ const PLAYER_COLORS = [
     {name: "SILVER",  hex: "#a8a8a8"}
 ]
 
+// The swatch shown for CLASSIC, per character.
+const CLASSIC_COLOR = {frodo: "#386900", sonic: "#2038ec", pierre: "#186ab8"}
+
 const FRODO_OUTFIT = 0x386900
 const FRODO_CLOAK = 0x794100
 
-// Texture key for a character ("frodo" or "sonic") in a color, made once.
+// Texture key for a character ("frodo", "sonic" or "pierre") in a color,
+// made once. Pierre's blue shirt changes like Sonic's blues.
 function playerTexture(scene, character, colorIndex)
 {
-    let base = (character == "sonic") ? "sonicSheet" : "frodo"
+    let base = {sonic: "sonicSheet", pierre: "pierre"}[character] || "frodo"
     let color = PLAYER_COLORS[colorIndex] || PLAYER_COLORS[0]
     if (!color.hex) return base
 
@@ -60,7 +64,7 @@ function playerTexture(scene, character, colorIndex)
     }
     ctx.putImageData(image, 0, 0)
 
-    let frame = (character == "sonic") ? SONIC_CELL : {w: 33, h: 33}
+    let frame = {sonic: SONIC_CELL, pierre: PIERRE}[character] || {w: 33, h: 33}
     scene.textures.addSpriteSheet(key, canvas, {frameWidth: frame.w, frameHeight: frame.h})
     return key
 }

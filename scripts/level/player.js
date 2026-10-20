@@ -1,6 +1,28 @@
 // Enemy hits needed to fill the super charge.
 const SUPER_CHARGE_MAX = 12
 
+// Pierre, from Artius (bought in the Shop), fights like Frodo, with paint.
+// His sheet, assets/sprites/pierre.png, has bigger cells than Frodo's (his
+// throw reaches far), his feet on row `feet`. His hitbox is the box around his
+// idle pose (`body`, in cell pixels), whatever frame is showing, and his
+// origin is its middle, like Frodo's.
+const PIERRE = {
+    w: 68, h: 54, feet: 48,
+    frames: {idle: [0, 9], walk: [10, 17], jump: [18, 18], fall: [19, 19], attack: [20, 25]},
+    body: {y: 16, w: 21, h: 33}
+}
+PIERRE.originY = (PIERRE.body.y + PIERRE.body.h / 2) / PIERRE.h
+
+function loadPierre(scene)
+{
+    scene.load.spritesheet("pierre", "assets/sprites/pierre.png", {frameWidth: PIERRE.w, frameHeight: PIERRE.h})
+    scene.load.spritesheet("pierrePaint", "assets/sprites/pierrePaint.png", {frameWidth: 16, frameHeight: 8})
+    scene.load.spritesheet("pierreSplash", "assets/sprites/pierreSplash.png", {frameWidth: 42, frameHeight: 46})
+    // His super: the original Artius paint blob and a half-size burst.
+    scene.load.spritesheet("pierreSuperPaint", "assets/sprites/pierreSuperPaint.png", {frameWidth: 37, frameHeight: 18})
+    scene.load.spritesheet("pierreSuperSplash", "assets/sprites/pierreSuperSplash.png", {frameWidth: 90, frameHeight: 100})
+}
+
 class Player extends Phaser.Physics.Arcade.Sprite
 {
     constructor(scene, x, y, sprite)
@@ -13,9 +35,10 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		this.sprite = sprite
 		// Sprite keys can have an online color suffix ("frodo_3", "sonicSheet_2").
 		this.isSonic = sprite.startsWith("sonicSheet") // Bought in the Shop.
-		this.isFrodo = sprite.startsWith("frodo")
+		this.isPierre = sprite.startsWith("pierre")    // Also from the Shop.
+		this.isFrodo = sprite.startsWith("frodo") || this.isPierre // Pierre fights like Frodo.
 
-        let playerAnimations = this.isSonic ? this.createSonicAnims() : [
+        let playerAnimations = this.isSonic ? this.createSonicAnims() : this.isPierre ? this.createPierreAnims() : [
             this.anims.create ({
                 key: "idle",
                 frames: [{key: sprite, frame: 0}],
@@ -85,6 +108,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
 		this.body.setGravityY(300)
 		this.setMaxVelocity(500, 500)
 		if (this.isSonic) this.setupSonic()
+		if (this.isPierre) this.setupPierre()
         scene.cameras.main.startFollow(this, true, 0.2, 1)
 
         // Recent positions (one per frame) and whether a jump started there,
@@ -157,6 +181,36 @@ class Player extends Phaser.Physics.Arcade.Sprite
     }
 
     // Only Frodo on foot can attack (not Legolas' horse, not Gandalf).
+    // Pierre's own animations, under the same names as Frodo's.
+    createPierreAnims() {
+        let frames = (name) => this.anims.generateFrameNumbers(this.sprite, {start: PIERRE.frames[name][0], end: PIERRE.frames[name][1]})
+        return [
+            this.anims.create({key: "idle",             frames: frames("idle"),   frameRate: 8,  repeat: -1}),
+            this.anims.create({key: "walking",          frames: frames("walk"),   frameRate: 12, repeat: -1}),
+            // Once started, the throw plays through (see play()).
+            this.anims.create({key: "attacking",        frames: frames("attack"), frameRate: 26}),
+            this.anims.create({key: "walkingAttacking", frames: frames("attack"), frameRate: 26}),
+            this.anims.create({key: "jumping",          frames: frames("jump"),   frameRate: 14}),
+            this.anims.create({key: "falling",          frames: frames("fall"),   frameRate: 10})
+        ]
+    }
+
+    // His idle hitbox, centered so it stays put when he turns around.
+    setupPierre() {
+        let b = PIERRE.body
+        this.setOrigin(0.5, PIERRE.originY)
+        this.body.setSize(b.w, b.h, false)
+        this.body.setOffset((PIERRE.w - b.w) / 2, b.y)
+    }
+
+    // Pierre's throw wins over walking, jumping and falling: once it
+    // starts, it plays to the end.
+    play(key, ignoreIfPlaying) {
+        if (this.isPierre && key != "attacking" && key != "walkingAttacking" && this.anims.isPlaying &&
+            this.anims.currentAnim && ["attacking", "walkingAttacking"].includes(this.anims.currentAnim.key)) return this
+        return super.play(key, ignoreIfPlaying)
+    }
+
     canSuper() {
         return this.isFrodo && currentLevel != 6
     }
@@ -173,7 +227,8 @@ class Player extends Phaser.Physics.Arcade.Sprite
 
     megaSlash() {
         this.charge = 0
-        this.superGroup.add(new MegaSlash(this.scene, this.x, this.y, this.flipX))
+        this.superGroup.add(this.isPierre ? new SuperPaint(this.scene, this.x, this.y, this.flipX)
+            : new MegaSlash(this.scene, this.x, this.y, this.flipX))
         if (this.scene.netSession) this.scene.netSession.sendShot(this.x, this.y, this.flipX, true)
         this.scene.sound.play("sword")
         this.scene.cameras.main.flash(120, 255, 255, 255)
@@ -286,7 +341,9 @@ class Player extends Phaser.Physics.Arcade.Sprite
 				{
 					if(this.controls.attack.isDown && this.projectileCounter >= 15)    
 					{
-						this.projectileGroup.add(new Projectile(this.scene, this.x, this.y, this.flipX, "playerProjectile", 160, 30))
+						this.projectileGroup.add(this.isPierre
+							? new PaintShot(this.scene, this.x, this.y, this.flipX)
+							: new Projectile(this.scene, this.x, this.y, this.flipX, "playerProjectile", 160, 30))
 						if (this.scene.netSession) this.scene.netSession.sendShot(this.x, this.y, this.flipX, false)
 						this.scene.sound.play("sword")
 						this.projectileCounter = 0;

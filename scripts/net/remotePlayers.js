@@ -10,7 +10,7 @@ const DEATHMATCH_TIME = 180000 // Three minutes.
 const NET_RESPAWN_TIME = 2000
 
 // Off-screen markers: where each character's face is in its idle frame.
-const MARKER_FACE = {frodo: {x: 8, y: 1, w: 14, h: 11}, sonic: {x: 7, y: 8, w: 18, h: 15}}
+const MARKER_FACE = {frodo: {x: 8, y: 1, w: 14, h: 11}, sonic: {x: 7, y: 8, w: 18, h: 15}, pierre: {x: 25, y: 17, w: 18, h: 14}}
 const MARKER_SIZE = 21 // The marker's circle (odd, so it has a center pixel).
 
 class NetSession
@@ -88,7 +88,9 @@ class NetSession
         // Hidden while the stage's story card is up.
         tag.setVisible(sprite.visible && !this.scene.briefing)
         tag.x = Math.round(sprite.x - tag.width / 2)
-        tag.y = Math.round(sprite.y - sprite.displayHeight / 2 - 12)
+        // Pierre's cell is taller than he is: his name goes by Frodo's height.
+        let top = sprite.tagTop || (sprite.isPierre ? PIERRE.body.h / 2 : sprite.displayHeight / 2)
+        tag.y = Math.round(sprite.y - top - 12)
     }
 
     // ---- Off-screen markers ------------------------------------------------------
@@ -98,8 +100,8 @@ class NetSession
     makeMarker(profile, key)
     {
         let scene = this.scene
-        let character = profile.character == "sonic" ? "sonic" : "frodo"
-        let hex = PLAYER_COLORS[profile.color].hex || (character == "sonic" ? "#2038ec" : "#386900")
+        let character = profile.character
+        let hex = PLAYER_COLORS[profile.color].hex || CLASSIC_COLOR[character]
 
         let face = scene.add.image(0, 0, this.markerTexture(key, character, hex))
 
@@ -208,6 +210,7 @@ class NetSession
             let key = playerTexture(this.scene, profile.character, profile.color)
             // Same layer as our own player: behind the foreground (grass).
             let sprite = this.scene.add.sprite(msg.x, msg.y, key, 0).setDepth(0.99)
+            if (profile.character == "pierre") { sprite.setOrigin(0.5, PIERRE.originY); sprite.tagTop = PIERRE.body.h / 2 }
             r = {sprite: sprite, key: key, tag: this.makeTag(profile), marker: this.makeMarker(profile, key), state: msg}
             this.remotes.set(msg.from, r)
         }
@@ -231,8 +234,10 @@ class NetSession
     onShot(msg)
     {
         if (msg.level != currentLevel) return
-        let shot = msg.mega
-            ? new MegaSlash(this.scene, msg.x, msg.y, msg.left)
+        let profile = Net.players.get(msg.from)
+        let pierre = profile && profile.character == "pierre"
+        let shot = msg.mega ? (pierre ? new SuperPaint(this.scene, msg.x, msg.y, msg.left) : new MegaSlash(this.scene, msg.x, msg.y, msg.left))
+            : pierre ? new PaintShot(this.scene, msg.x, msg.y, msg.left)
             : new Projectile(this.scene, msg.x, msg.y, msg.left, "playerProjectile", 160, 30)
         shot.owner = msg.from
         shot.damage = msg.mega ? 2 : 1

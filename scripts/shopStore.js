@@ -1,7 +1,8 @@
 // Things you can buy in the Shop with coins, and which one is switched on.
 // Only one bought thing can be on at a time. Kept in this browser.
 const SHOP_ITEMS = [
-    {id: "sonic", name: "SONIC", price: 382, about: "PLAY AS SONIC THE HEDGEHOG"}
+    {id: "sonic", name: "SONIC", price: 300, about: "PLAY AS SONIC THE HEDGEHOG"},
+    {id: "pierre", name: "PIERRE", price: 300, about: "PLAY AS PIERRE FROM ARTIUS"}
 ]
 
 const ShopStore = {

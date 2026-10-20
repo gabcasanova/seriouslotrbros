@@ -226,7 +226,7 @@ const Net = {
         let name = String(p.name || "").toUpperCase().replace(/[^A-Z0-9 .!?-]/g, "").trim().slice(0, 10)
         return {
             name: name || "PLAYER",
-            character: p.character == "sonic" ? "sonic" : "frodo",
+            character: ["sonic", "pierre"].includes(p.character) ? p.character : "frodo",
             color: Number.isInteger(p.color) && PLAYER_COLORS[p.color] ? p.color : 0
         }
     },
@@ -310,7 +310,7 @@ const Net = {
         let profile = {name: "PLAYER", character: "frodo", color: 0}
         try { Object.assign(profile, JSON.parse(localStorage.getItem("onlineProfile")) || {}) } catch (e) {}
         profile = this.cleanProfile(profile)
-        if (profile.character == "sonic" && !ShopStore.owns("sonic")) profile.character = "frodo"
+        if (profile.character != "frodo" && !ShopStore.owns(profile.character)) profile.character = "frodo"
         return profile
     },
 

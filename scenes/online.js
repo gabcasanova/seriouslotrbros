@@ -69,6 +69,7 @@ class Online extends Phaser.Scene
     preload()
     {
         this.load.spritesheet("frodo", "assets/sprites/frodo.png", {frameWidth: 33, frameHeight: 33})
+        loadPierre(this)
         this.load.image("sonicRaw", "assets/sprites/sonic.png")
         this.load.audio("menuMove", "assets/sounds/coin.wav")
     }
@@ -157,9 +158,10 @@ class Online extends Phaser.Scene
     {
         let p = this.profile
         let canSonic = ShopStore.owns("sonic")
+        let canPierre = ShopStore.owns("pierre")
         let colors = PLAYER_COLORS.map((c, i) =>
             `<button data-color="${i}" class="swatch${i == p.color ? " on" : ""}" title="${c.name}"
-                style="background:${c.hex || (p.character == "sonic" ? "#2038ec" : "#386900")}"></button>`).join("")
+                style="background:${c.hex || CLASSIC_COLOR[p.character]}"></button>`).join("")
         return `
             <h3>YOUR PLAYER</h3>
             <label>NAME</label>
@@ -168,6 +170,7 @@ class Online extends Phaser.Scene
             <div class="row">
                 <button data-char="frodo" class="${p.character == "frodo" ? "on" : ""}">FRODO</button>
                 <button data-char="sonic" class="${p.character == "sonic" ? "on" : ""}" ${canSonic ? "" : "disabled"}>${canSonic ? "SONIC" : "SONIC (SHOP)"}</button>
+                <button data-char="pierre" class="${p.character == "pierre" ? "on" : ""}" ${canPierre ? "" : "disabled"}>${canPierre ? "PIERRE" : "PIERRE (SHOP)"}</button>
             </div>
             <label>COLOR: ${PLAYER_COLORS[p.color].name}</label>
             <div class="row swatches">${colors}</div>
@@ -360,9 +363,12 @@ class Online extends Phaser.Scene
     {
         let p = this.profile
         this.preview.setTexture(playerTexture(this, p.character, p.color), p.character == "sonic" ? SONIC_ANIM_FRAMES.idle[0] : 0)
+        this.preview.setOrigin(0.5, p.character == "pierre" ? PIERRE.originY : 0.5)
         this.previewName.setText(p.name || "PLAYER")
         this.previewName.x = Math.round(72 - this.previewName.width / 2)
-        this.previewName.y = Math.round(this.preview.y - this.preview.displayHeight / 2 - 12)
+        // Pierre's cell is taller than he is: his name goes by Frodo's height.
+        let top = p.character == "pierre" ? PIERRE.body.h / 2 * this.preview.scaleY : this.preview.displayHeight / 2
+        this.previewName.y = Math.round(this.preview.y - top - 12)
     }
 
     // ---- Input ---------------------------------------------------------------
