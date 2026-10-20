@@ -193,6 +193,11 @@ class Level extends Phaser.Scene
         this.layers[2].depth = 1
         this.cameras.main.setBounds(0, 0, map.width * map.tileWidth, map.height * map.tileHeight)
 
+        // The stage's left, right and bottom edges are solid walls, so nobody
+        // can fall out of it. The top stays open for high spring jumps.
+        this.physics.world.setBounds(0, 0, map.width * map.tileWidth, map.height * map.tileHeight, true, true, false, true)
+        this.player.setCollideWorldBounds(true)
+
         this.physics.add.collider(this.player, this.layers[1]);
 
         // Ai Player.
@@ -278,6 +283,10 @@ class Level extends Phaser.Scene
         if (this.levelFinished) return
         if (!remote && this.player.lives <= 0) return // Too late if dying.
 
+        // Online co-op: wait at the exit until everyone is there.
+        if (!remote && this.online == "coop") { this.netSession.arrive(); return }
+        if (this.netSession) this.netSession.clearWaiting()
+
         this.levelFinished = true
         this.player.canMove = false
         this.player.setVelocityX(0)
@@ -286,8 +295,6 @@ class Level extends Phaser.Scene
         this.sound.stopAll()
         this.sound.play("actClear")
         this.finishLevel()
-
-        if (!remote && this.netSession) Net.send({t: "finish"})
     }
 
     importObjects(layer)
@@ -301,9 +308,19 @@ class Level extends Phaser.Scene
         const DEATHMATCH_SKIP = ["coin", "endSpot", "lockScreen", "shooter", "orc", "goblin", "bomb",
             "blackrider", "redKey", "yellowKey", "redBlock", "yellowBlock"]
 
+        // Deathmatch: where players come back after dying. The stage's start
+        // and its extra lives (which aren't pickups there), one spot per
+        // bunch of lives.
+        this.spawnPoints = []
+        let addSpawn = (x, y) =>
+        {
+            if (this.spawnPoints.every(p => Phaser.Math.Distance.Between(p.x, p.y, x, y) > 48)) this.spawnPoints.push({x: x, y: y})
+        }
+
         // Import objects from layer.
         layer.forEach(object => 
         {
+            if (this.online == "deathmatch" && object.type == "life") { addSpawn(object.x + 8, object.y); return }
             if (this.online == "deathmatch" && DEATHMATCH_SKIP.includes(object.type)) return
 
             switch(object.type)
@@ -311,6 +328,7 @@ class Level extends Phaser.Scene
                 case "playerStart":
                     this.player.x = object.x
                     this.player.y = object.y
+                    addSpawn(object.x, object.y)
                     break
                     
                 case "coin":
@@ -326,6 +344,7 @@ class Level extends Phaser.Scene
 				case "yellowBlock":
 				case "shooter":
                     let item = new Item(this, object.x, object.y, object.type, object.flippedVertical, object.flippedHorizontal)
+                    item.netId = object.id // Online co-op: shared key walls.
                     if (object.type == "coin")
                     {
                         item.coinId = object.id

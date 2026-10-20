@@ -191,7 +191,7 @@ class Player extends Phaser.Physics.Arcade.Sprite
         if (this.scene.levelFinished) return
 
         let net = this.scene.netSession
-        if (net && (net.dead || net.over)) return
+        if (net && (net.dead || net.over || net.arrived)) return
 
         // Sonic has rings instead of lives (not in deathmatch: fair fights).
         if (this.isSonic && !(net && net.mode == "deathmatch")) return this.sonicHurt()

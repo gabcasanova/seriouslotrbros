@@ -1,4 +1,6 @@
 // Pause menu, launched on top of a paused Level or Balrog scene.
+const PAUSE_LIST_WIDTH = 136 // Online: the window listing the room's players.
+const PAUSE_LIST_GAP = 8
 class Pause extends Phaser.Scene
 {
     constructor()
@@ -13,14 +15,29 @@ class Pause extends Phaser.Scene
         // no restarting.
         if (scene.online || scene.netSession || Net.inGame)
         {
-            scene.player.canMove = false
-            scene.player.setVelocityX(0)
+            Pause.standStill(scene.player)
             scene.scene.launch("Pause", {target: scene.scene.key, hints: Hints.current, online: true})
             return
         }
         scene.sound.pauseAll()
         scene.scene.launch("Pause", {target: scene.scene.key, hints: Hints.current})
         scene.scene.pause()
+    }
+
+    // Online pause: the player stops where they are and stands idle (the
+    // others see them standing, not running on the spot).
+    static standStill(player)
+    {
+        player.canMove = false
+        player.setVelocityX(0)
+        if (player.isSonic)
+        {
+            player.gsp = 0
+            player.skidding = player.spindashing = false
+            if (player.body.onFloor()) player.rolling = player.isBall = false
+            if (player.isBall) return // Still curled up in the air.
+        }
+        player.play("idle", true)
     }
 
     init(data)
@@ -35,24 +52,25 @@ class Pause extends Phaser.Scene
         this.leaving = false
 
         let w = 112
-        let h = 88
-        let x = Math.round((config.width - w) / 2)
+        let h = 28 + (this.online ? 3 : 4) * 12 // Room for each option.
+        // Online, the room's players (and deathmatch scores) are listed
+        // beside the menu, so the pair is centered together.
+        let x = Math.round((config.width - w - (this.online ? PAUSE_LIST_GAP + PAUSE_LIST_WIDTH : 0)) / 2)
         let y = Math.round((config.height - h) / 2)
+        if (this.online) this.makePlayerList(x + w + PAUSE_LIST_GAP)
 
         drawWindow(this.add.graphics(), x, y, w, h)
-        addNesText(this, config.width / 2, y + 8, "PAUSE", "#ffffff", true)
+        addNesText(this, x + w / 2, y + 8, "PAUSE", "#ffffff", true)
 
-        let onOff = (kind) => AudioSettings[kind] ? "ON" : "OFF"
+        let volume = {label: () => "VOLUME: " + AudioSettings.volume, action: () => this.changeVolume(1), volume: true}
         this.options = this.online ? [
             {label: () => "RESUME",     action: () => this.resume()},
-            {label: () => "MUSIC: " + onOff("music"), action: () => this.toggle("music"), toggle: true},
-            {label: () => "SFX: " + onOff("sfx"),     action: () => this.toggle("sfx"), toggle: true},
+            volume,
             {label: () => "LEAVE ROOM", action: () => this.leaveRoom()}
         ] : [
             {label: () => "RESUME",    action: () => this.resume()},
             {label: () => "RESTART",   action: () => this.restart()},
-            {label: () => "MUSIC: " + onOff("music"), action: () => this.toggle("music"), toggle: true},
-            {label: () => "SFX: " + onOff("sfx"),     action: () => this.toggle("sfx"), toggle: true},
+            volume,
             {label: () => "MAIN MENU", action: () => this.toMenu()}
         ]
         this.options.forEach((option, i) =>
@@ -81,6 +99,44 @@ class Pause extends Phaser.Scene
         ])
     }
 
+    // Online: who's in the room, in their colors. In deathmatch, their
+    // kills too, best first. Kept up to date while the menu is open.
+    makePlayerList(x)
+    {
+        this.listX = x
+        this.listObjects = []
+        this.refreshPlayerList()
+        Net.listen(this, "room", () => this.refreshPlayerList())
+        Net.listen(this, "left", () => this.refreshPlayerList())
+    }
+
+    refreshPlayerList()
+    {
+        this.listObjects.forEach(o => o.destroy())
+
+        let deathmatch = Net.settings.mode == "deathmatch"
+        let players = [...Net.players.values()]
+        if (deathmatch) players.sort((a, b) => (Net.scores[b.id] || 0) - (Net.scores[a.id] || 0))
+
+        let w = PAUSE_LIST_WIDTH
+        let h = 28 + players.length * 12
+        let x = this.listX
+        let y = Math.round((config.height - h) / 2)
+        this.listObjects = [drawWindow(this.add.graphics(), x, y, w, h)]
+        this.listObjects.push(addNesText(this, x + w / 2, y + 8, deathmatch ? "KILLS" : "PLAYERS", "#ffffff", true))
+        players.forEach((p, i) =>
+        {
+            let row = y + 24 + i * 12
+            let color = (PLAYER_COLORS[p.color] || PLAYER_COLORS[0]).hex || "#ffffff"
+            this.listObjects.push(addNesText(this, x + 14, row, p.name, color))
+            if (deathmatch)
+            {
+                let kills = String(Net.scores[p.id] || 0).padStart(3, " ")
+                this.listObjects.push(addNesText(this, x + w - 38, row, kills, "#ffffff"))
+            }
+        })
+    }
+
     select(index)
     {
         this.selected = index
@@ -94,10 +150,11 @@ class Pause extends Phaser.Scene
         this.options[this.selected].action()
     }
 
-    // Switch music or sound effects and update the option's ON/OFF.
-    toggle(kind)
+    // Volume up (OK, right) or down (left), 0 to 100.
+    changeVolume(dir)
     {
-        AudioSettings.toggle(kind)
+        if (dir > 0 && AudioSettings.volume >= 100 && !this.stepping) AudioSettings.set(0) // OK wraps around.
+        else AudioSettings.step(dir)
         let option = this.options[this.selected]
         option.text.setText(option.label())
         this.select(this.selected)
@@ -109,7 +166,9 @@ class Pause extends Phaser.Scene
         if (this.online)
         {
             let level = this.scene.get(this.target)
-            if (level.netSession && !level.netSession.dead && !level.netSession.over) level.player.canMove = true
+            let net = level.netSession
+            // Not if we're down, out, or already waiting at the exit.
+            if (net && !net.dead && !net.over && !net.arrived && !level.levelFinished) level.player.canMove = true
         }
         else
         {
@@ -138,7 +197,7 @@ class Pause extends Phaser.Scene
         this.cameras.main.once('camerafadeoutcomplete', () =>
         {
             this.sound.stopAll()
-            this.sound.setVolume(1)
+            this.sound.setVolume(AudioSettings.volume / 100)
             done()
         })
     }
@@ -166,13 +225,26 @@ class Pause extends Phaser.Scene
     {
         if (this.leaving) return
 
+        // Online the stage goes on underneath: when it ends (everyone made
+        // it to the exit, the room closed), the menu closes with it.
+        if (this.online)
+        {
+            let level = this.scene.get(this.target)
+            if (!level.sys.isActive() || level.levelFinished) { this.scene.stop(); return }
+        }
+
         let count = this.options.length
         if (GameInput.justPressed("down")) this.select((this.selected + 1) % count)
         if (GameInput.justPressed("up"))   this.select((this.selected + count - 1) % count)
 
         let option = this.options[this.selected]
-        if (GameInput.justPressed("confirm") ||
-            (option.toggle && (GameInput.justPressed("left") || GameInput.justPressed("right"))))
+        if (option.volume && (GameInput.justPressed("left") || GameInput.justPressed("right")))
+        {
+            this.stepping = true
+            this.changeVolume(GameInput.justPressed("left") ? -1 : 1)
+            this.stepping = false
+        }
+        else if (GameInput.justPressed("confirm"))
         {
             this.choose()
         }

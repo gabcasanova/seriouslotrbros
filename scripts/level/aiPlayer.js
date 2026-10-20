@@ -49,6 +49,7 @@ class AiPlayer extends Phaser.Physics.Arcade.Sprite
 
         this.body.setGravityY(300)
         this.body.setSize(this.width - 20, this.height)
+        this.setCollideWorldBounds(true) // Stage edges are solid (see Level).
         this.distance = distance
 
         // Follows the player's path this many frames behind (the further

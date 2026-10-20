@@ -76,7 +76,7 @@ class Credits extends Phaser.Scene
     backToMenu()
     {
         this.sound.stopAll()
-        this.sound.setVolume(1)
+        this.sound.setVolume(AudioSettings.volume / 100) // Back from the fade.
         this.input.setDefaultCursor('default')
         currentLevel = 0
         this.scene.start("Menu");
@@ -99,7 +99,7 @@ class Credits extends Phaser.Scene
                 if (this.musicVolume > 0)
                 {
                     this.musicVolume -= 0.003
-                    this.sound.setVolume(this.musicVolume)
+                    this.sound.setVolume(this.musicVolume * AudioSettings.volume / 100)
                 }
                 else
                 {

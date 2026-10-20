@@ -6,7 +6,7 @@
 //   Deathmatch: no enemies; sword shots and Sonic's ball hurt players; each
 //   kill scores a point; matches last DEATHMATCH_TIME.
 const NET_SEND_INTERVAL = 50 // ms between position updates (20 a second).
-const DEATHMATCH_TIME = 60000
+const DEATHMATCH_TIME = 180000 // Three minutes.
 const NET_RESPAWN_TIME = 2000
 
 class NetSession
@@ -27,7 +27,7 @@ class NetSession
             scene.physics.add.overlap(scene.player, this.remoteShots, (player, shot) =>
             {
                 if (this.dead || this.over) return
-                this.hitMe(shot.owner, shot.damage)
+                this.hitMe(shot.owner, shot.damage, shot.charge)
                 shot.destroy()
             })
         }
@@ -39,25 +39,37 @@ class NetSession
         let on = (type, fn) => Net.listen(scene, type, fn)
         on("state", (msg) => this.onState(msg))
         on("shot", (msg) => this.onShot(msg))
-        on("left", (msg) => this.removeRemote(msg.id))
+        on("left", (msg) => { this.removeRemote(msg.id); this.checkArrivals() })
         on("hostLeft", () => this.quit("THE HOST LEFT THE ROOM"))
         on("died", (msg) => { if (Net.isHost) Net.scoreKill(msg.by) })
         on("room", () => this.updateScore())
         on("matchEnd", () => this.showResults())
-        on("hitFx", (msg) => { if (msg.level == currentLevel) hitSpark(scene, msg.x, msg.y) })
+        on("hitFx", (msg) =>
+        {
+            if (msg.level != currentLevel) return
+            hitSpark(scene, msg.x, msg.y)
+            // Our sword hit them: it charges the super, like hitting enemies.
+            if (msg.by == Net.me.id && msg.charge) scene.player.addCharge(msg.charge)
+        })
         if (this.mode == "coop")
         {
             // Only the players and the stage's start and end are shared:
             // everyone has their own enemies, coins and items.
             on("go", (msg) => { if (msg.level == currentLevel && scene.briefing) { scene.intro.skip(); scene.startLevel() } })
             on("finish", () => scene.reachEnd(true))
+            on("arrived", (msg) => this.markArrived(msg.from))
+            on("key", (msg) => this.onKey(msg.color))
+            on("block", (msg) => this.onBlock(msg.id))
+            on("riderHit", (msg) => this.onRiderHit(msg.pinches, msg.health))
+            on("arrivals", (msg) => this.showWaiting(msg.count, msg.total))
         }
 
         if (this.mode == "deathmatch")
         {
             let cx = config.width / 2
-            this.timerText = addNesText(scene, cx, 6, "1:00", "#ffffff", true, true).setScrollFactor(0).setDepth(6)
+            this.timerText = addNesText(scene, cx, 6, "3:00", "#ffffff", true, true).setScrollFactor(0).setDepth(6)
             this.scoreText = addNesText(scene, cx, 17, "KILLS 0", "#f8b800", true, true).setScrollFactor(0).setDepth(6)
+            this.leaderText = addNesText(scene, cx, 28, "", "#ffffff", true, true).setScrollFactor(0).setDepth(6)
         }
     }
 
@@ -117,6 +129,7 @@ class NetSession
             : new Projectile(this.scene, msg.x, msg.y, msg.left, "playerProjectile", 160, 30)
         shot.owner = msg.from
         shot.damage = msg.mega ? 2 : 1
+        shot.charge = msg.mega ? 0 : 1 // What the hit gives its owner's super.
         this.remoteShots.add(shot)
     }
 
@@ -126,11 +139,110 @@ class NetSession
         Net.send({t: "shot", level: currentLevel, x: Math.round(x), y: Math.round(y), left: left, mega: !!mega})
     }
 
+    // ---- Co-op sharing: keys, key walls and the Black Rider ----------------------
+
+    shareKey(color)
+    {
+        if (this.mode == "coop") Net.send({t: "key", color: color})
+    }
+
+    onKey(color)
+    {
+        this.scene.player.keys[color] = true
+        // That key is gone for everyone.
+        this.scene.children.list.filter(o => o instanceof Item && o.keyColor == color).forEach(o => o.destroy())
+    }
+
+    shareBlock(id)
+    {
+        if (this.mode == "coop" && id !== undefined) Net.send({t: "block", id: id})
+    }
+
+    onBlock(id)
+    {
+        let block = this.scene.children.list.find(o => o instanceof Item && o.netId == id)
+        if (block) block.destroy()
+    }
+
+    shareRiderHit(pinches, health)
+    {
+        if (this.mode == "coop") Net.send({t: "riderHit", pinches: pinches, health: health})
+    }
+
+    onRiderHit(pinches, health)
+    {
+        let rider = this.scene.children.list.find(o => o instanceof BlackRider)
+        if (rider) rider.syncHealth(pinches, health)
+    }
+
+    // ---- Co-op exit: everyone has to get there ---------------------------------
+
+    // We reached the end: wait there (safe) until the others do too.
+    arrive()
+    {
+        if (this.arrived) return
+        this.arrived = true
+        let player = this.scene.player
+        player.canMove = false
+        player.setVelocityX(0)
+        player.play("idle", true)
+        Hints.hide()
+        this.showWaiting(1, Net.players.size)
+        Net.send({t: "arrived"})
+        if (Net.isHost) this.markArrived(Net.me.id)
+    }
+
+    // Host: count who's at the exit; when it's everyone, clear the stage.
+    markArrived(id)
+    {
+        if (!Net.isHost || this.scene.levelFinished) return
+        this.arrivedIds = this.arrivedIds || new Set()
+        this.arrivedIds.add(id)
+        this.checkArrivals()
+    }
+
+    checkArrivals()
+    {
+        if (!Net.isHost || !this.arrivedIds || this.scene.levelFinished) return
+        // Only count players still in the room.
+        for (let id of this.arrivedIds) if (!Net.players.has(id)) this.arrivedIds.delete(id)
+        let count = this.arrivedIds.size
+        let total = Net.players.size
+        Net.send({t: "arrivals", count: count, total: total})
+        if (this.arrived) this.showWaiting(count, total)
+
+        if (count >= total && count > 0)
+        {
+            Net.send({t: "finish"})
+            this.scene.reachEnd(true)
+        }
+    }
+
+    showWaiting(count, total)
+    {
+        if (!this.arrived) return
+        let text = "WAITING FOR THE OTHERS " + count + "/" + total
+        if (!this.waitingText)
+        {
+            this.waitingText = addNesText(this.scene, config.width / 2, 40, text, "#f8b800", true, true)
+                .setScrollFactor(0).setDepth(6)
+        }
+        this.waitingText.setText(text)
+        this.waitingText.x = Math.round(config.width / 2 - this.waitingText.width / 2)
+    }
+
+    clearWaiting()
+    {
+        if (this.waitingText) this.waitingText.destroy()
+        this.waitingText = null
+    }
+
     // ---- Getting hit (deathmatch) ---------------------------------------------
 
     // Another player hit us. Only our own screen decides this, so the hit
     // always counts against us, never against them.
-    hitMe(by, damage)
+    // charge: how much the hit fills the attacker's super (sword shots).
+    hitMe(by, damage, charge)
     {
         let player = this.scene.player
         if (this.dead || this.over || !player.timer.execute) return // Still flashing.
@@ -140,7 +252,7 @@ class NetSession
         let x = Math.round(player.x)
         let y = Math.round(player.y)
         hitSpark(this.scene, x, y)
-        Net.send({t: "hitFx", level: currentLevel, x: x, y: y})
+        Net.send({t: "hitFx", level: currentLevel, x: x, y: y, by: by, charge: charge || 0})
     }
 
     // Our attacks reaching the others: shots stop on them (the mega slash
@@ -184,21 +296,36 @@ class NetSession
         if (this.over) return
         let scene = this.scene
         let player = scene.player
-        // Back to the stage's starting point; nothing else resets.
-        let start = scene.layers[3].find(o => o.type == "playerStart")
-        let x = start.x
-        let y = start.y - 20
+        // Co-op: back to the stage's start. Deathmatch: one of the stage's
+        // spawn spots. Nothing else resets.
+        let spot = this.spawnSpot()
+        let x = spot.x
+        let y = spot.y - 20
 
         player.body.enable = true
         player.body.reset(x, y)
         player.setVisible(true)
         player.lives = 4
         player.fading = false
-        player.canMove = true
+        // Still in the menu: moving waits for resume.
+        if (scene.scene.isActive("Pause")) Pause.standStill(player)
+        else player.canMove = true
         player.timer.execute = false
         player.timer.current = player.timer.max // A moment of flashing safety.
         if (player.isSonic) player.gsp = 0
         this.dead = false
+    }
+
+    // A random spawn spot, away from the others if one is free.
+    spawnSpot()
+    {
+        let scene = this.scene
+        let start = scene.layers[3].find(o => o.type == "playerStart")
+        if (this.mode != "deathmatch" || !scene.spawnPoints || !scene.spawnPoints.length) return start
+
+        let others = [...this.remotes.values()].map(r => r.sprite).filter(s => s.visible)
+        let free = scene.spawnPoints.filter(p => others.every(o => Phaser.Math.Distance.Between(p.x, p.y, o.x, o.y) > 80))
+        return Phaser.Utils.Array.GetRandom(free.length ? free : scene.spawnPoints)
     }
 
     // ---- Deathmatch clock and results ----------------------------------------
@@ -210,8 +337,26 @@ class NetSession
 
     updateScore()
     {
-        if (this.scoreText) this.scoreText.setText("KILLS " + (Net.scores[Net.me.id] || 0))
-        if (this.scoreText) this.scoreText.x = Math.round(config.width / 2 - this.scoreText.width / 2)
+        if (!this.scoreText) return
+        this.scoreText.setText("KILLS " + (Net.scores[Net.me.id] || 0))
+        this.scoreText.x = Math.round(config.width / 2 - this.scoreText.width / 2)
+
+        // Who's in the lead (nobody until the first kill).
+        let players = [...Net.players.values()]
+        let best = Math.max(0, ...players.map(p => Net.scores[p.id] || 0))
+        let leaders = players.filter(p => (Net.scores[p.id] || 0) == best)
+        let text = ""
+        let color = "#ffffff"
+        if (best > 0 && leaders.length > 1) text = "TIED FOR THE LEAD"
+        else if (best > 0 && leaders[0].id == Net.me.id) text = "YOU ARE IN THE LEAD"
+        else if (best > 0)
+        {
+            text = leaders[0].name + " IS IN THE LEAD"
+            color = (PLAYER_COLORS[leaders[0].color] || PLAYER_COLORS[0]).hex || color
+        }
+        this.leaderText.setText(text)
+        this.leaderText.setColor(color)
+        this.leaderText.x = Math.round(config.width / 2 - this.leaderText.width / 2)
     }
 
     tickClock()
@@ -243,6 +388,7 @@ class NetSession
         if (this.over) return
         this.over = true
         this.freeze()
+        this.scene.scene.stop("Pause") // The results take over the screen.
         Hints.hide()
 
         let scene = this.scene
@@ -307,7 +453,9 @@ class NetSession
             this.sendTimer = 0
             Net.send({
                 t: "state", level: currentLevel,
-                x: Math.round(player.x), y: Math.round(player.y), fx: player.flipX,
+                // To the half pixel: sprites sit on half pixels (33 tall), and a
+                // rounded y would draw others a pixel low, feet in the grass.
+                x: Math.round(player.x * 2) / 2, y: Math.round(player.y * 2) / 2, fx: player.flipX,
                 frame: player.frame.name, alpha: Math.round(player.alpha * 10) / 10,
                 ball: !!(player.isSonic && player.isBall), dead: this.dead
             })
@@ -319,6 +467,9 @@ class NetSession
             let s = r.sprite
             s.x += (r.state.x - s.x) * 0.35
             s.y += (r.state.y - s.y) * 0.35
+            // Close enough: land exactly there, not a fraction off.
+            if (Math.abs(r.state.x - s.x) < 0.5) s.x = r.state.x
+            if (Math.abs(r.state.y - s.y) < 0.5) s.y = r.state.y
             this.placeTag(r.tag, s)
 
             if (this.mode == "deathmatch" && s.visible && !this.dead && !this.over)

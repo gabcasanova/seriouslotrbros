@@ -71,6 +71,7 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 					_projectile.destroy()
 					scene.player.addCharge(1)
 					this.health -= 1
+					this.shareHit()
 					this.scene.cameras.main.shake(50, 0.003)
 				}
 			}
@@ -82,6 +83,7 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 			if (this.moving && !this.pinchMode && slash.hit(this))
 			{
 				this.health -= slash.bossDamage
+				this.shareHit()
 			}
         }, null, this)
 		
@@ -97,10 +99,51 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
 		this.healthBar = scene.add.sprite(this.x, this.y, "bossHealthBar", 0) // Healthbar sprite.
 	}
 	
+	// Online co-op: everyone's Black Rider takes the same hits. The whole
+	// state is sent (pinches left and health), not just the damage, so the
+	// screens agree even when the players reach the fight at different times.
+	shareHit()
+	{
+		this.checkPinch()
+		if (this.scene.netSession) this.scene.netSession.shareRiderHit(this.totalPinches, this.health)
+	}
+
+	// Another player's hit: keep whichever state is further along.
+	syncHealth(pinches, health)
+	{
+		if (this.dead) return
+		if (pinches < this.totalPinches)
+		{
+			this.totalPinches = pinches
+			this.health = health
+			this.startPinch()
+		}
+		else if (pinches == this.totalPinches)
+		{
+			this.health = Math.min(this.health, health)
+		}
+	}
+
+	// Out of health: lose a pinch and go red for a while.
+	checkPinch()
+	{
+		if (this.pinchMode || this.health > 0) return
+		this.totalPinches -= 1
+		this.health = this.maxHealth
+		this.startPinch()
+	}
+
+	startPinch()
+	{
+		this.pinchMode = true
+		if (this.pinchTimer) this.pinchTimer.remove()
+		this.pinchTimer = this.scene.time.delayedCall(10000, () => this.pinchMode = false)
+	}
+
 	// Sonic's ball or spindash: hurts under the same rules as sword hits.
 	takeBallHit(damage)
 	{
-		if (this.moving && !this.pinchMode) this.health -= damage
+		if (this.moving && !this.pinchMode) { this.health -= damage; this.shareHit() }
 	}
 
 	preUpdate(time, delta)
@@ -171,22 +214,7 @@ class BlackRider extends Phaser.Physics.Arcade.Sprite
         }
 		
 		// Start pinch mode.
-		if (this.started)
-		{
-			if (!this.pinchMode)
-			{
-				if (this.health <= 0)
-				{
-					this.totalPinches -= 1
-					this.health = this.maxHealth
-					this.pinchMode = true
-					
-					let timer = this.scene.time.delayedCall(10000, function(){
-						this.pinchMode = false
-					}, [], this);  // delay in ms
-				}
-			}
-		}
+		if (this.started) this.checkPinch()
 		
 		// Kill boss animation.
 		if (!this.dead)

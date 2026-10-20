@@ -199,14 +199,13 @@ class Menu extends Phaser.Scene
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("keydown", cheat))
 
         // Music and sound effect switches, top-right.
-        this.musicToggle = new SoundToggle(this, config.width - 42, 6, "music")
-        this.sfxToggle = new SoundToggle(this, config.width - 22, 6, "sfx")
+        this.volumeControl = new VolumeControl(this, config.width - 6 - VOLUME_BAR_WIDTH, 6)
 
         // Keyboard / gamepad selection. The mouse hovering a button selects it too.
         // The three menu buttons come first, then the two switches.
-        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.musicToggle, this.sfxToggle, this.shopButton, this.onlineButton]
+        this.buttons = [this.playButton, this.levelsButton, this.creditsButton, this.volumeControl, this.shopButton, this.onlineButton]
         // Layout for keyboard / gamepad: rows of button indices, top to bottom.
-        this.grid = [[3, 4], [0], [1, 5], [6, 2]]
+        this.grid = [[3], [0], [1, 4], [5, 2]]
         this.buttons.forEach((b, i) => b.onHover = () => this.select(i))
         this.select(0)
 
@@ -288,23 +287,28 @@ class Menu extends Phaser.Scene
         {
             this.backgrounds.forEach(strip => this.scrollStrip(strip))
 
-            // Keep the switches and coins inside the visible corners.
+            // Keep the volume control and coins inside the visible corners.
             let left = Math.ceil(Overlay.visibleBounds().left)
             this.coinIcon.x = left + 4
             this.coinText.x = left + 19
             let right = Math.floor(Overlay.visibleBounds().right)
-            this.sfxToggle.moveTo(right - 22, 6)
-            this.musicToggle.moveTo(right - 42, 6)
+            this.volumeControl.moveTo(right - 6 - VOLUME_BAR_WIDTH, 6)
 
             if (!this.fadeStarted && this.time.now >= this.acceptInputAt)
             {
-                // Move around the grid: up from New Game reaches the sound
-                // switches, down from Credits wraps to New Game.
+                // Move around the grid: up from New Game reaches the volume
+                // control, down from Credits wraps to New Game.
                 let r = this.grid.findIndex(row => row.includes(this.selected))
                 let c = this.grid[r].indexOf(this.selected)
                 let go = (row, col) => this.select(this.grid[row][Math.min(col, this.grid[row].length - 1)])
                 if (GameInput.justPressed("down")) go(r == this.grid.length - 1 ? 1 : r + 1, c)
                 else if (GameInput.justPressed("up")) go(Math.max(0, r - 1), c)
+                else if (this.buttons[this.selected] == this.volumeControl)
+                {
+                    // Left/right turn the volume down/up.
+                    if (GameInput.justPressed("left")) AudioSettings.step(-1)
+                    if (GameInput.justPressed("right")) AudioSettings.step(1)
+                }
                 else if (GameInput.justPressed("left")) go(r, Math.max(0, c - 1))
                 else if (GameInput.justPressed("right")) go(r, c + 1)
                 if (GameInput.justPressed("confirm")) this.buttons[this.selected].press()

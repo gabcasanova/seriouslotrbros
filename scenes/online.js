@@ -8,10 +8,11 @@
 
 // Stages that work online (not the horse ride, not the Balrog fight).
 const ONLINE_STAGES = LEVEL_SELECT.filter(e => !e.scene && e.level != 6).map(e => e.level)
-const VOTE_TIME = 10000
+const VOTE_TIME = 60000 // One minute (or until everyone has voted).
 const VOTE_CHOICES = 3
 // Vote times use the game loop's clock: a scene's own clock reads 0 while
 // it's being created.
+const NEED_PLAYERS = "YOU NEED AT LEAST 2 PLAYERS"
 
 class Online extends Phaser.Scene
 {
@@ -86,6 +87,8 @@ class Online extends Phaser.Scene
         if (vote && this.page != "vote") this.page = "vote"
         if (!vote && this.page == "vote") this.page = "rooms"
         if (vote) this.voteReceivedAt = this.game.loop.time
+        // Someone joined: the "need 2 players" note no longer applies.
+        if (Net.players.size >= 2 && this.message == NEED_PLAYERS) this.message = ""
         this.render()
     }
 
@@ -168,7 +171,9 @@ class Online extends Phaser.Scene
                 <button data-stage="1" ${host ? "" : "disabled"}>&gt;</button>
             </div>
             <div class="row">
-                ${host ? `<button data-act="start" class="big">START</button>` : `<span>WAITING FOR THE HOST...</span>`}
+                ${!host ? `<span>WAITING FOR THE HOST...</span>`
+                    : Net.players.size < 2 ? `<span class="dim">WAITING FOR PLAYERS...</span>`
+                    : `<button data-act="start" class="big">START</button>`}
                 <button data-act="leave">LEAVE</button>
             </div>`
     }
@@ -372,6 +377,13 @@ class Online extends Phaser.Scene
 
     hostStart()
     {
+        // Online needs company.
+        if (Net.players.size < 2)
+        {
+            if (Net.settings.vote) this.endVote()
+            this.say(NEED_PLAYERS)
+            return
+        }
         Net.scores = {}
         Net.settings.vote = null
         let settings = Object.assign({}, Net.settings)
@@ -427,6 +439,13 @@ class Online extends Phaser.Scene
         vote.votes[id] = stage
         vote.left = this.voteEndsAt - this.game.loop.time
         Net.sendRoom()
+
+        // Everyone voted: no need to wait out the clock.
+        if ([...Net.players.keys()].every(p => vote.votes[p] !== undefined))
+        {
+            if (this.voteTimer) this.voteTimer.remove()
+            this.time.delayedCall(1200, () => this.finishVote())
+        }
     }
 
     // Host: the most votes wins (ties and no votes: a random pick of those).

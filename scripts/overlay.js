@@ -360,7 +360,7 @@ class Cutscene
         // Retry with sound on the next real interaction if autoplay was blocked.
         this.unlock = () =>
         {
-            if (this.video && this.video.muted && AudioSettings.music)
+            if (this.video && this.video.muted && AudioSettings.volume > 0)
             {
                 this.video.muted = false
             }
@@ -371,8 +371,9 @@ class Cutscene
 
     play()
     {
-        // Cutscene sound counts as music.
-        this.video.muted = !AudioSettings.music
+        // Cutscenes follow the game's volume.
+        this.video.volume = AudioSettings.volume / 100
+        this.video.muted = AudioSettings.volume == 0
         let attempt = this.video.play()
         if (attempt)
         {

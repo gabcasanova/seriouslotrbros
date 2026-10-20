@@ -203,18 +203,6 @@ function slashedIcon(rows)
     }).join(""))
 }
 
-const MUSIC_ICON = [
-    "...######.",
-    "...######.",
-    "...#....#.",
-    "...#....#.",
-    "...#....#.",
-    ".###..###.",
-    "####.####.",
-    "####.####.",
-    ".##...##.."
-]
-
 const SPEAKER_ICON = [
     "....#.....",
     "...##...#.",
@@ -227,47 +215,73 @@ const SPEAKER_ICON = [
     ".........."
 ]
 
-// Small 16x16 window with an icon that switches music or sound effects
-// on and off. Outline is white while selected, gray otherwise.
-class SoundToggle
+// Master volume control: a speaker and a 10-segment bar in a small window.
+// Click a segment to set the volume, or the speaker to mute / unmute; with
+// keys or a gamepad, left/right changes it. Outline is white while selected.
+const VOLUME_BAR_WIDTH = 62
+
+class VolumeControl
 {
-    constructor(scene, x, y, kind)
+    constructor(scene, x, y)
     {
         this.scene = scene
         this.x = x
         this.y = y
-        this.kind = kind
         this.selected = false
         this.onHover = null
+        this.beforeMute = 100
 
-        let rows = (kind == "music") ? MUSIC_ICON : SPEAKER_ICON
-        this.onKey = pixelTexture(scene, kind + "IconOn", rows)
-        this.offKey = pixelTexture(scene, kind + "IconOff", slashedIcon(rows))
+        this.onKey = pixelTexture(scene, "sfxIconOn", SPEAKER_ICON)
+        this.offKey = pixelTexture(scene, "sfxIconOff", slashedIcon(SPEAKER_ICON))
 
         this.graphics = scene.add.graphics()
-        this.icon = scene.add.image(x + 3, y + 4, this.onKey).setOrigin(0, 0)
+        this.icon = scene.add.image(0, 0, this.onKey).setOrigin(0, 0)
 
-        this.hitArea = new Phaser.Geom.Rectangle(x, y, 16, 16)
+        this.hitArea = new Phaser.Geom.Rectangle(x, y, VOLUME_BAR_WIDTH, 16)
         this.graphics.setInteractive(this.hitArea, Phaser.Geom.Rectangle.Contains)
         this.graphics.input.cursor = 'pointer'
         this.graphics.on('pointerover', () => { if (this.onHover) this.onHover(this) })
-        this.graphics.on('pointerdown', () => this.press())
+        this.graphics.on('pointerdown', (pointer) => this.clicked(pointer.x))
 
-        this.refresh = () =>
-        {
-            this.icon.setTexture(AudioSettings[this.kind] ? this.onKey : this.offKey)
-        }
+        this.refresh = () => this.draw()
         AudioSettings.onChange(this.refresh)
         scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => AudioSettings.offChange(this.refresh))
 
-        this.refresh()
-        this.setSelected(false)
+        this.draw()
+    }
+
+    draw()
+    {
+        let g = this.graphics.clear()
+        drawWindow(g, this.x, this.y, VOLUME_BAR_WIDTH, 16, true, this.selected ? 0xffffff : 0x7c7c7c)
+        this.icon.setPosition(this.x + 3, this.y + 4)
+        this.icon.setTexture(AudioSettings.volume > 0 ? this.onKey : this.offKey)
+
+        let lit = AudioSettings.volume / VOLUME_STEP
+        for (let i = 0; i < 10; i++)
+        {
+            g.fillStyle(i < lit ? 0xf8b800 : 0x3c3c3c, 1)
+            g.fillRect(this.x + 16 + i * 4, this.y + 4, 3, 8)
+        }
+    }
+
+    clicked(pointerX)
+    {
+        let i = Math.floor((pointerX - (this.x + 16)) / 4)
+        if (i < 0) this.toggleMute()
+        else AudioSettings.set((Math.min(i, 9) + 1) * VOLUME_STEP)
+    }
+
+    toggleMute()
+    {
+        if (AudioSettings.volume > 0) { this.beforeMute = AudioSettings.volume; AudioSettings.set(0) }
+        else AudioSettings.set(this.beforeMute || 100)
     }
 
     setSelected(selected)
     {
         this.selected = selected
-        drawWindow(this.graphics.clear(), this.x, this.y, 16, 16, true, selected ? 0xffffff : 0x7c7c7c)
+        this.draw()
     }
 
     moveTo(x, y)
@@ -275,13 +289,12 @@ class SoundToggle
         if (x == this.x && y == this.y) return
         this.x = x
         this.y = y
-        this.icon.setPosition(x + 3, y + 4)
         this.hitArea.setPosition(x, y)
-        this.setSelected(this.selected)
+        this.draw()
     }
 
     press()
     {
-        AudioSettings.toggle(this.kind)
+        AudioSettings.cycle()
     }
 }

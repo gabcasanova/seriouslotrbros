@@ -178,9 +178,11 @@ class Item extends Phaser.Physics.Arcade.Sprite
 				this.setFrame(4)
 				
 				// Player
+				this.keyColor = "red"
 				scene.physics.add.overlap(this, scene.player, function()
 				{
 					scene.player.keys.red = true
+					if (scene.netSession) scene.netSession.shareKey("red") // Co-op: everyone's key.
 					this.destroy()
 				}, null, this)
 				break
@@ -189,9 +191,11 @@ class Item extends Phaser.Physics.Arcade.Sprite
 				this.setFrame(5)
 				
 				// Player
+				this.keyColor = "yellow"
 				scene.physics.add.overlap(this, scene.player, function()
 				{
 					scene.player.keys.yellow = true
+					if (scene.netSession) scene.netSession.shareKey("yellow")
 					this.destroy()
 				}, null, this)
 				break
@@ -207,6 +211,7 @@ class Item extends Phaser.Physics.Arcade.Sprite
                     {
                         if (_player.keys.red)
 						{
+							if (scene.netSession) scene.netSession.shareBlock(_this.netId) // Co-op: opens for all.
 							_this.destroy()
 						}
                     }
@@ -227,6 +232,7 @@ class Item extends Phaser.Physics.Arcade.Sprite
                     {
                         if (_player.keys.yellow)
 						{
+							if (scene.netSession) scene.netSession.shareBlock(_this.netId)
 							_this.destroy()
 						}
                     }
