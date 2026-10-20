@@ -9,6 +9,10 @@ const NET_SEND_INTERVAL = 50 // ms between position updates (20 a second).
 const DEATHMATCH_TIME = 180000 // Three minutes.
 const NET_RESPAWN_TIME = 2000
 
+// Off-screen markers: where each character's face is in its idle frame.
+const MARKER_FACE = {frodo: {x: 8, y: 1, w: 14, h: 11}, sonic: {x: 7, y: 8, w: 18, h: 15}}
+const MARKER_SIZE = 21 // The marker's circle (odd, so it has a center pixel).
+
 class NetSession
 {
     constructor(scene)
@@ -87,6 +91,108 @@ class NetSession
         tag.y = Math.round(sprite.y - sprite.displayHeight / 2 - 12)
     }
 
+    // ---- Off-screen markers ------------------------------------------------------
+
+    // A player out of view shows at the screen's edge: their face in a
+    // circle of their color, with an arrow pointing their way. No name.
+    makeMarker(profile, key)
+    {
+        let scene = this.scene
+        let character = profile.character == "sonic" ? "sonic" : "frodo"
+        let hex = PLAYER_COLORS[profile.color].hex || (character == "sonic" ? "#2038ec" : "#386900")
+
+        let face = scene.add.image(0, 0, this.markerTexture(key, character, hex))
+
+        // Points right; turned toward the player each frame.
+        let arrow = scene.add.graphics()
+        arrow.fillStyle(Phaser.Display.Color.HexStringToColor(hex).color, 1)
+        for (let i = 0; i < 3; i++) arrow.fillRect(i, i - 2, 1, 5 - 2 * i)
+
+        let marker = scene.add.container(0, 0, [face, arrow]).setScrollFactor(0).setDepth(6).setVisible(false)
+        marker.face = face
+        marker.arrow = arrow
+        return marker
+    }
+
+    // A pixel circle: a ring in the player's color, black inside, and the
+    // face from their texture's idle frame. Made once per texture.
+    markerTexture(key, character, hex)
+    {
+        let markerKey = key + "_marker"
+        let textures = this.scene.textures
+        if (textures.exists(markerKey)) return markerKey
+
+        let size = MARKER_SIZE
+        let crop = MARKER_FACE[character]
+        let frame = textures.getFrame(key, character == "sonic" ? SONIC_ANIM_FRAMES.idle[0] : 0)
+        let faceCanvas = document.createElement("canvas")
+        faceCanvas.width = size
+        faceCanvas.height = size
+        faceCanvas.getContext("2d").drawImage(frame.source.image, frame.cutX + crop.x, frame.cutY + crop.y, crop.w, crop.h,
+            Math.floor((size - crop.w) / 2), Math.floor((size - crop.h) / 2), crop.w, crop.h)
+        let face = faceCanvas.getContext("2d").getImageData(0, 0, size, size).data
+
+        let canvas = document.createElement("canvas")
+        canvas.width = size
+        canvas.height = size
+        let ctx = canvas.getContext("2d")
+        let image = ctx.createImageData(size, size)
+        let ring = Phaser.Display.Color.HexStringToColor(hex)
+        let c = (size - 1) / 2
+        let radius = size / 2
+        for (let y = 0; y < size; y++)
+        {
+            for (let x = 0; x < size; x++)
+            {
+                let d = Math.hypot(x - c, y - c)
+                if (d > radius - 0.3) continue // Outside.
+                let i = (y * size + x) * 4
+                if (d > radius - 1.6) { image.data[i] = ring.red; image.data[i + 1] = ring.green; image.data[i + 2] = ring.blue }
+                else if (face[i + 3] > 0) { image.data[i] = face[i]; image.data[i + 1] = face[i + 1]; image.data[i + 2] = face[i + 2] }
+                image.data[i + 3] = 255 // Black where there's no face.
+            }
+        }
+        ctx.putImageData(image, 0, 0)
+        textures.addCanvas(markerKey, canvas)
+        return markerKey
+    }
+
+    placeMarker(r)
+    {
+        let marker = r.marker
+        let s = r.sprite
+        let cam = this.scene.cameras.main
+        let bounds = Overlay.visibleBounds()
+        let x = s.x - cam.scrollX
+        let y = s.y - cam.scrollY
+
+        let onScreen = x > bounds.left - 8 && x < bounds.right + 8 && y > -16 && y < config.height + 16
+        marker.setVisible(s.visible && !onScreen && !this.scene.briefing && !this.over)
+        if (!marker.visible) return
+
+        // Kept clear of the HUD: the lives bar on the left, the top rows and
+        // the control hints at the bottom.
+        let mx = Phaser.Math.Clamp(x, bounds.left + 28, bounds.right - 14)
+        let my = Phaser.Math.Clamp(y, 44, config.height - 26)
+        marker.setPosition(Math.round(mx), Math.round(my))
+
+        // Arrow on the side facing the player; the face looks that way too.
+        let dx = x - mx
+        let dy = y - my
+        let arrow = marker.arrow
+        if (Math.abs(dx) >= Math.abs(dy))
+        {
+            arrow.setAngle(dx > 0 ? 0 : 180)
+            arrow.setPosition(dx > 0 ? MARKER_SIZE / 2 + 1 : -MARKER_SIZE / 2 - 1, 0)
+        }
+        else
+        {
+            arrow.setAngle(dy > 0 ? 90 : -90)
+            arrow.setPosition(0, dy > 0 ? MARKER_SIZE / 2 + 1 : -MARKER_SIZE / 2 - 1)
+        }
+        marker.face.flipX = dx < 0
+    }
+
     // ---- Other players --------------------------------------------------------
 
     onState(msg)
@@ -102,7 +208,7 @@ class NetSession
             let key = playerTexture(this.scene, profile.character, profile.color)
             // Same layer as our own player: behind the foreground (grass).
             let sprite = this.scene.add.sprite(msg.x, msg.y, key, 0).setDepth(0.99)
-            r = {sprite: sprite, key: key, tag: this.makeTag(profile), state: msg}
+            r = {sprite: sprite, key: key, tag: this.makeTag(profile), marker: this.makeMarker(profile, key), state: msg}
             this.remotes.set(msg.from, r)
         }
         r.state = msg
@@ -118,6 +224,7 @@ class NetSession
         if (!r) return
         r.sprite.destroy()
         r.tag.destroy()
+        r.marker.destroy()
         this.remotes.delete(id)
     }
 
@@ -482,6 +589,7 @@ class NetSession
             if (Math.abs(r.state.x - s.x) < 0.5) s.x = r.state.x
             if (Math.abs(r.state.y - s.y) < 0.5) s.y = r.state.y
             this.placeTag(r.tag, s)
+            this.placeMarker(r)
 
             if (this.mode == "deathmatch" && s.visible && !this.dead && !this.over)
             {
